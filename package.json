@@ -1,0 +1,49 @@
+{
+  "name": "hospital-vet-pagina-reserva",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint --fix"
+  },
+  "dependencies": {
+    "@heroui/react": "2.8.9",
+    "@iconify/react": "^5.2.0",
+    "@internationalized/date": "^3.11.0",
+    "clsx": "2.1.1",
+    "date-fns": "^4.1.0",
+    "framer-motion": "11.18.2",
+    "next": "15.5.9",
+    "next-themes": "0.4.6",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "15.5.9",
+    "@react-types/shared": "3.33.0",
+    "@tailwindcss/postcss": "4.1.11",
+    "@types/node": "20.5.7",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@typescript-eslint/eslint-plugin": "8.34.1",
+    "@typescript-eslint/parser": "8.34.1",
+    "eslint": "9.25.1",
+    "eslint-config-next": "15.5.9",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-import": "2.31.0",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-node": "11.1.0",
+    "eslint-plugin-prettier": "5.2.1",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "eslint-plugin-unused-imports": "4.1.4",
+    "globals": "16.0.0",
+    "postcss": "8.5.6",
+    "prettier": "3.5.3",
+    "tailwind-variants": "3.2.2",
+    "tailwindcss": "4.1.11",
+    "typescript": "5.6.3"
+  }
+}
