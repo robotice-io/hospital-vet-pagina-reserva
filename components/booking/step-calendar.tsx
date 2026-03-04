@@ -4,6 +4,7 @@ import {
   Button,
   Calendar,
   ScrollShadow,
+  Spinner,
   Tab,
   Tabs,
   type DateValue,
@@ -13,13 +14,22 @@ import {isWeekend} from "@internationalized/date";
 import {format} from "date-fns";
 import {enUS} from "date-fns/locale";
 import {motion} from "framer-motion";
-import {useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
+import {useBooking} from "./booking-context";
 import type {TimeSlot} from "./calendar-types";
-import {
-  DurationEnum,
-  TimeFormatEnum,
-  timeFormats,
-} from "./calendar-types";
+import {TimeFormatEnum, timeFormats} from "./calendar-types";
+
+function formatSlotTime(time: string, format: TimeFormatEnum): string {
+  const [h, m] = time.split(":");
+  const hours = parseInt(h, 10);
+  const mins = m;
+  if (format === TimeFormatEnum.TwelveHour) {
+    const period = hours >= 12 ? "pm" : "am";
+    const display = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${display}:${mins} ${period}`;
+  }
+  return `${h}:${mins}`;
+}
 
 interface CalendarTimeSlotProps {
   slot: TimeSlot;
@@ -85,7 +95,10 @@ function CalendarTimeSlot({
 interface CalendarTimeSelectProps {
   weekday: string;
   day: number;
-  duration: DurationEnum;
+  timeSlots: TimeSlot[];
+  loading: boolean;
+  timeFormat: TimeFormatEnum;
+  onTimeFormatChange: (selectedKey: React.Key) => void;
   selectedTime: string;
   onTimeChange: (time: string, selectedTimeSlotRange?: TimeSlot[]) => void;
   onConfirm: () => void;
@@ -94,53 +107,14 @@ interface CalendarTimeSelectProps {
 function CalendarTimeSelect({
   weekday,
   day,
-  duration,
+  timeSlots,
+  loading,
+  timeFormat,
+  onTimeFormatChange,
   selectedTime,
   onTimeChange,
   onConfirm,
 }: CalendarTimeSelectProps) {
-  const [timeFormat, setTimeFormat] = useState<TimeFormatEnum>(TimeFormatEnum.TwelveHour);
-
-  const onTimeFormatChange = (selectedKey: React.Key) => {
-    const timeFormatIndex = timeFormats.findIndex((tf) => tf.key === selectedKey);
-
-    if (timeFormatIndex !== -1) {
-      setTimeFormat(timeFormats[timeFormatIndex].key);
-      onTimeChange("");
-    }
-  };
-
-  const intervalMinutes = duration === DurationEnum.ThirtyMinutes ? 30 : 60;
-
-  const timeSlots = useMemo(() => {
-    const slots: TimeSlot[] = [];
-    const totalMinutesInDay = 24 * 60;
-
-    for (let minutes = 0; minutes < totalMinutesInDay; minutes += intervalMinutes) {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-
-      const value = `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
-
-      if (timeFormat === TimeFormatEnum.TwelveHour) {
-        const period = hours >= 12 ? "pm" : "am";
-        const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-
-        slots.push({
-          value,
-          label: `${displayHours}:${mins.toString().padStart(2, "0")} ${period}`,
-        });
-      } else {
-        slots.push({
-          value,
-          label: value,
-        });
-      }
-    }
-
-    return slots;
-  }, [timeFormat, intervalMinutes]);
-
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2 lg:w-[240px] lg:flex-none lg:self-stretch">
       <div className="flex w-full shrink-0 justify-between py-2">
@@ -165,42 +139,77 @@ function CalendarTimeSelect({
         </Tabs>
       </div>
       <div className="flex min-h-0 w-full flex-1">
-        <ScrollShadow hideScrollBar className="flex w-full flex-col gap-2">
-          {timeSlots.map((slot) => (
-            <CalendarTimeSlot
-              key={slot.value}
-              isSelected={slot.value === selectedTime}
-              slot={slot}
-              timeSlots={timeSlots}
-              onConfirm={onConfirm}
-              onTimeChange={onTimeChange}
-            />
-          ))}
-        </ScrollShadow>
+        {loading ? (
+          <div className="flex w-full flex-1 items-center justify-center">
+            <Spinner />
+          </div>
+        ) : timeSlots.length === 0 ? (
+          <div className="flex w-full flex-1 items-center justify-center text-small text-default-500">
+            No hay horarios disponibles
+          </div>
+        ) : (
+          <ScrollShadow hideScrollBar className="flex w-full flex-col gap-2">
+            {timeSlots.map((slot) => (
+              <CalendarTimeSlot
+                key={slot.value}
+                isSelected={slot.value === selectedTime}
+                slot={slot}
+                timeSlots={timeSlots}
+                onConfirm={onConfirm}
+                onTimeChange={onTimeChange}
+              />
+            ))}
+          </ScrollShadow>
+        )}
       </div>
     </div>
   );
 }
 
 interface StepCalendarProps {
+  calendarId: string;
+  vetServiceId: string;
   selectedDate: DateValue;
   onDateChange: (date: DateValue) => void;
   selectedTime: string;
   onTimeChange: (time: string, selectedTimeSlotRange?: TimeSlot[]) => void;
-  duration: DurationEnum;
   onBack: () => void;
   onNext: () => void;
 }
 
 export default function StepCalendar({
+  calendarId,
+  vetServiceId,
   selectedDate,
   onDateChange,
   selectedTime,
   onTimeChange,
-  duration,
   onBack,
   onNext,
 }: StepCalendarProps) {
+  const {availableSlots, loadingSlots, fetchSlotsFor} = useBooking();
+  const [timeFormat, setTimeFormat] = useState<TimeFormatEnum>(TimeFormatEnum.TwelveHour);
+
+  useEffect(() => {
+    const dateString = selectedDate.toString();
+    fetchSlotsFor(calendarId, dateString, vetServiceId);
+  }, [selectedDate, calendarId, vetServiceId, fetchSlotsFor]);
+
+  const onTimeFormatChange = (selectedKey: React.Key) => {
+    const timeFormatIndex = timeFormats.findIndex((tf) => tf.key === selectedKey);
+
+    if (timeFormatIndex !== -1) {
+      setTimeFormat(timeFormats[timeFormatIndex].key);
+    }
+  };
+
+  const timeSlots = useMemo(() => {
+    return availableSlots.map((slot): TimeSlot => ({
+      value: slot.slot_start,
+      label: formatSlotTime(slot.slot_start, timeFormat),
+    }));
+  }, [availableSlots, timeFormat]);
+
   const isDateUnavailable = (date: DateValue) => {
     return isWeekend(date, "en-US");
   };
@@ -233,11 +242,14 @@ export default function StepCalendar({
         </div>
         <CalendarTimeSelect
           day={selectedDate.day}
-          duration={duration}
+          loading={loadingSlots}
           selectedTime={selectedTime}
+          timeFormat={timeFormat}
+          timeSlots={timeSlots}
           weekday={format(selectedDate.toString(), "EEE", {locale: enUS})}
           onConfirm={onNext}
           onTimeChange={onTimeChange}
+          onTimeFormatChange={onTimeFormatChange}
         />
       </div>
 
