@@ -107,7 +107,7 @@ export default function StepConfirmation({
           icon="solar:close-circle-bold-duotone"
           width={56}
         />
-        <p className="text-default-foreground text-base font-medium">
+        <p className="text-default-foreground text-lg font-medium font-serif">
           Error al confirmar
         </p>
         <p className="text-tiny text-default-500 text-center">{submitError}</p>
@@ -135,7 +135,7 @@ export default function StepConfirmation({
           icon="solar:check-circle-bold-duotone"
           width={56}
         />
-        <p className="text-default-foreground mb-2 text-base font-medium">
+        <p className="text-default-foreground mb-2 text-lg font-medium font-serif">
           ¡Tu cita ha sido agendada!
         </p>
         <p className="text-tiny text-default-500 text-center">

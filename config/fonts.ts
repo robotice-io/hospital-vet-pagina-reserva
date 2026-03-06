@@ -1,7 +1,8 @@
-import { Inter, Fira_Code } from "next/font/google";
+import { DM_Sans, Fira_Code } from "next/font/google";
 
-export const fontSans = Inter({
+export const fontSans = DM_Sans({
   subsets: ["latin"],
+  weight: "400",
   variable: "--font-sans",
 });
 

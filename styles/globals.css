@@ -7,6 +7,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: "font", sans-serif;
+  --font-sans: "DM Sans", sans-serif;
+  --font-serif: Georgia, serif;
   --font-mono: "monospace", monospace;
 }

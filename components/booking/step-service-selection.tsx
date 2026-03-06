@@ -54,7 +54,7 @@ export default function StepServiceSelection({
             variants={fadeVariants}
           >
             <div className="shrink-0 flex flex-col gap-1 pb-[15px]">
-              <h2 className="text-lg font-semibold text-default-foreground">
+              <h2 className="text-xl font-semibold font-serif text-default-foreground">
                 Selecciona un Especialista
               </h2>
               <p className="text-small text-default-500">
@@ -119,7 +119,7 @@ export default function StepServiceSelection({
             </button>
 
             <div className="shrink-0 flex flex-col gap-1">
-              <h2 className="text-lg font-semibold text-default-foreground">
+              <h2 className="text-xl font-semibold font-serif text-default-foreground">
                 Selecciona un Servicio
               </h2>
               <p className="text-small text-default-500">

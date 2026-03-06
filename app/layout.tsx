@@ -2,8 +2,6 @@ import "@/styles/globals.css";
 
 import type { Metadata, Viewport } from "next";
 
-import clsx from "clsx";
-
 import { Providers } from "./providers";
 import { fontSans } from "@/config/fonts";
 
@@ -29,12 +27,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html suppressHydrationWarning lang="es">
-      <body
-        className={clsx(
-          "min-h-dvh bg-background font-sans antialiased",
-          fontSans.variable,
-        )}
-      >
+      <body className={`${fontSans.variable} min-h-dvh bg-background font-sans antialiased`}>
         <Providers themeProps={{ attribute: "class", defaultTheme: "light", forcedTheme: "light" }}>
           <main className="mx-auto flex h-dvh w-full max-w-lg flex-col overflow-hidden px-4 py-6 lg:max-w-3xl">
             {children}
