@@ -46,6 +46,14 @@ export interface VeterinarianService {
   is_active: boolean;
 }
 
+export interface GeneralService {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price: number;
+  calendar_id: string;
+}
+
 export interface BookingParams {
   phone: string;
   clientName: string;
@@ -159,7 +167,47 @@ export async function getAvailableSlots(
   });
 
   if (error) throw new Error(error.message);
-  return ((data as AvailableSlot[]) ?? []).filter((slot) => slot.is_available);
+  return (data as AvailableSlot[]) ?? [];
+}
+
+export async function getGeneralServices(): Promise<GeneralService[]> {
+  const { data, error } = await supabase
+    .from("service_calendars")
+    .select("calendar_id, clinic_services(*)");
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .filter((row: any) => row.clinic_services?.is_active)
+    .map((row: any) => ({
+      id: row.clinic_services.id,
+      name: row.clinic_services.name,
+      duration_minutes: row.clinic_services.duration_minutes,
+      price: row.clinic_services.price ?? 0,
+      calendar_id: row.calendar_id,
+    }))
+    .sort((a: GeneralService, b: GeneralService) => a.name.localeCompare(b.name, "es"));
+}
+
+export async function getAvailabilityDays(calendarId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("availability_config")
+    .select("day")
+    .eq("calendar_id", calendarId);
+
+  if (error) throw new Error(error.message);
+  const days = (data ?? []).map((row: { day: string }) => row.day);
+  return days.filter((day, index) => days.indexOf(day) === index);
+}
+
+export async function getBlockedDates(calendarId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("blocked_dates")
+    .select("blocked_date")
+    .or(`calendar_id.eq.${calendarId},calendar_id.is.null`);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row: { blocked_date: string }) => row.blocked_date);
 }
 
 export async function bookAppointment(params: BookingParams): Promise<BookingResult> {

@@ -16,9 +16,11 @@ function formatTime(time: string): string {
 }
 
 interface StepConfirmationProps {
-  veterinarian: Veterinarian;
-  vetService: VeterinarianService;
+  veterinarian?: Veterinarian;
+  vetService?: VeterinarianService;
+  generalServiceName?: string;
   calendarId: string;
+  serviceId?: string;
   date: string;
   dateFormatted: string;
   startTime: string;
@@ -32,17 +34,21 @@ interface StepConfirmationProps {
     notes: string;
   };
   onReschedule: () => void;
+  onChangeTime: () => void;
 }
 
 export default function StepConfirmation({
   veterinarian,
   vetService,
+  generalServiceName,
   calendarId,
+  serviceId,
   date,
   dateFormatted,
   startTime,
   clientData,
   onReschedule,
+  onChangeTime,
 }: StepConfirmationProps) {
   const {
     submitBooking,
@@ -52,6 +58,8 @@ export default function StepConfirmation({
     clearSubmitError,
   } = useBooking();
   const didSubmit = useRef(false);
+
+  const isGeneralFlow = !veterinarian;
 
   const bookingParams = useMemo(
     () => ({
@@ -64,8 +72,9 @@ export default function StepConfirmation({
       calendarId,
       date,
       startTime,
-      veterinarianId: veterinarian.id,
-      vetServiceId: vetService.id,
+      veterinarianId: veterinarian?.id,
+      vetServiceId: vetService?.id,
+      serviceId,
       notes: clientData.notes || undefined,
     }),
     [
@@ -73,8 +82,9 @@ export default function StepConfirmation({
       calendarId,
       date,
       startTime,
-      veterinarian.id,
-      vetService.id,
+      veterinarian?.id,
+      vetService?.id,
+      serviceId,
     ],
   );
 
@@ -112,8 +122,8 @@ export default function StepConfirmation({
         </p>
         <p className="text-tiny text-default-500 text-center">{submitError}</p>
         <div className="flex gap-2">
-          <Button variant="flat" onPress={onReschedule}>
-            Volver
+          <Button variant="flat" onPress={onChangeTime}>
+            Cambiar horario
           </Button>
           <Button color="primary" onPress={handleRetry}>
             Reintentar
@@ -126,6 +136,10 @@ export default function StepConfirmation({
   if (!bookingResult) {
     return null;
   }
+
+  const serviceName = isGeneralFlow
+    ? generalServiceName
+    : vetService?.label;
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5 rounded-large bg-default-50 py-8 shadow-small">
@@ -150,16 +164,18 @@ export default function StepConfirmation({
           <p className="text-small font-medium text-default-foreground">
             Servicio
           </p>
-          <p className="text-tiny text-default-500">{vetService.label}</p>
+          <p className="text-tiny text-default-500">{serviceName}</p>
         </div>
-        <div className="flex w-full flex-col gap-1">
-          <p className="text-small font-medium text-default-foreground">
-            Especialista
-          </p>
-          <p className="text-tiny text-default-500">
-            {veterinarian.name} — {veterinarian.specialty}
-          </p>
-        </div>
+        {!isGeneralFlow && veterinarian && (
+          <div className="flex w-full flex-col gap-1">
+            <p className="text-small font-medium text-default-foreground">
+              Especialista
+            </p>
+            <p className="text-tiny text-default-500">
+              {veterinarian.name} — {veterinarian.specialty}
+            </p>
+          </div>
+        )}
         <div className="flex w-full flex-col gap-1">
           <p className="text-small font-medium text-default-foreground">
             Fecha y hora
@@ -235,37 +251,6 @@ export default function StepConfirmation({
         </div>
       </div>
 
-      <Divider className="w-full" />
-
-      <div className="flex flex-col items-center gap-2">
-        <p className="text-tiny text-default-500">Agregar al calendario</p>
-        <div className="flex items-center gap-2">
-          <Button isIconOnly className="bg-default-100" size="sm">
-            <Icon className="text-default-600" icon="mdi:google" width={16} />
-          </Button>
-          <Button isIconOnly className="bg-default-100" size="sm">
-            <Icon
-              className="text-default-600"
-              icon="mdi:microsoft-outlook"
-              width={16}
-            />
-          </Button>
-          <Button isIconOnly className="bg-default-100" size="sm">
-            <Icon
-              className="text-default-600"
-              icon="mdi:microsoft-office"
-              width={16}
-            />
-          </Button>
-          <Button isIconOnly className="bg-default-100" size="sm">
-            <Icon
-              className="text-default-600"
-              icon="mdi:calendar-outline"
-              width={16}
-            />
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

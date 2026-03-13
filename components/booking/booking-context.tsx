@@ -14,6 +14,9 @@ import {
   getVeterinarians,
   getVetServices,
   getAvailableSlots,
+  getAvailabilityDays,
+  getBlockedDates,
+  getGeneralServices,
   bookAppointment,
 } from "@/lib/booking";
 import type {
@@ -21,6 +24,7 @@ import type {
   VeterinarianService,
   AvailableSlot,
   BookingResult,
+  GeneralService,
 } from "@/lib/booking";
 
 interface BookingContextValue {
@@ -33,8 +37,17 @@ interface BookingContextValue {
   availableSlots: AvailableSlot[];
   loadingSlots: boolean;
 
+  generalServices: GeneralService[];
+  loadingGeneralServices: boolean;
+
+  availableDays: string[];
+  blockedDates: string[];
+  loadingAvailability: boolean;
+
   fetchVetServicesFor: (veterinarianId: string) => void;
-  fetchSlotsFor: (calendarId: string, date: string, vetServiceId: string) => void;
+  fetchSlotsFor: (calendarId: string, date: string, vetServiceId?: string, serviceId?: string) => void;
+  fetchAvailabilityFor: (calendarId: string) => void;
+  fetchGeneralServices: () => void;
 
   submitBooking: (params: {
     phone: string;
@@ -43,18 +56,20 @@ interface BookingContextValue {
     patientName?: string;
     patientSpecies?: string;
     patientBreed?: string;
+    serviceId?: string;
     calendarId: string;
     date: string;
     startTime: string;
     notes?: string;
-    veterinarianId: string;
-    vetServiceId: string;
+    veterinarianId?: string;
+    vetServiceId?: string;
   }) => Promise<BookingResult>;
 
   bookingResult: BookingResult | null;
   submitting: boolean;
   submitError: string | null;
   clearSubmitError: () => void;
+  resetBookingState: () => void;
 }
 
 const BookingContext = createContext<BookingContextValue | null>(null);
@@ -67,6 +82,13 @@ export function BookingProvider({ children }: { children: ReactNode }) {
   const [loadingVets, setLoadingVets] = useState(true);
   const [loadingVetServices, setLoadingVetServices] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
+
+  const [generalServicesState, setGeneralServices] = useState<GeneralService[]>([]);
+  const [loadingGeneralServices, setLoadingGeneralServices] = useState(false);
+
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
 
   const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -90,16 +112,43 @@ export function BookingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchSlotsFor = useCallback(
-    (calendarId: string, date: string, vetServiceId: string) => {
+    (calendarId: string, date: string, vetServiceId?: string, serviceId?: string) => {
       setLoadingSlots(true);
       setAvailableSlots([]);
-      getAvailableSlots(calendarId, date, undefined, vetServiceId)
+      getAvailableSlots(calendarId, date, serviceId, vetServiceId)
         .then(setAvailableSlots)
         .catch(() => setAvailableSlots([]))
         .finally(() => setLoadingSlots(false));
     },
     [],
   );
+
+  const fetchGeneralServicesCallback = useCallback(() => {
+    setLoadingGeneralServices(true);
+    getGeneralServices()
+      .then(setGeneralServices)
+      .catch(() => setGeneralServices([]))
+      .finally(() => setLoadingGeneralServices(false));
+  }, []);
+
+  const fetchAvailabilityFor = useCallback((calendarId: string) => {
+    setLoadingAvailability(true);
+    setAvailableDays([]);
+    setBlockedDates([]);
+    Promise.all([
+      getAvailabilityDays(calendarId),
+      getBlockedDates(calendarId),
+    ])
+      .then(([days, blocked]) => {
+        setAvailableDays(days);
+        setBlockedDates(blocked);
+      })
+      .catch(() => {
+        setAvailableDays([]);
+        setBlockedDates([]);
+      })
+      .finally(() => setLoadingAvailability(false));
+  }, []);
 
   const submitBooking = useCallback(
     async (params: {
@@ -109,12 +158,13 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       patientName?: string;
       patientSpecies?: string;
       patientBreed?: string;
+      serviceId?: string;
       calendarId: string;
       date: string;
       startTime: string;
       notes?: string;
-      veterinarianId: string;
-      vetServiceId: string;
+      veterinarianId?: string;
+      vetServiceId?: string;
     }) => {
       setSubmitting(true);
       setSubmitError(null);
@@ -123,7 +173,10 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         setBookingResult(result);
         return result;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Error desconocido";
+        const raw = err instanceof Error ? err.message : "";
+        const message = raw.startsWith("Este horario")
+          ? raw
+          : "Ocurrió un error al agendar tu cita. Por favor intenta nuevamente.";
         setSubmitError(message);
         throw err;
       } finally {
@@ -135,6 +188,12 @@ export function BookingProvider({ children }: { children: ReactNode }) {
 
   const clearSubmitError = useCallback(() => setSubmitError(null), []);
 
+  const resetBookingState = useCallback(() => {
+    setBookingResult(null);
+    setSubmitError(null);
+    setAvailableSlots([]);
+  }, []);
+
   const value = useMemo<BookingContextValue>(
     () => ({
       veterinarians,
@@ -143,13 +202,21 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       loadingVetServices,
       availableSlots,
       loadingSlots,
+      generalServices: generalServicesState,
+      loadingGeneralServices,
+      availableDays,
+      blockedDates,
+      loadingAvailability,
       fetchVetServicesFor,
       fetchSlotsFor,
+      fetchAvailabilityFor,
+      fetchGeneralServices: fetchGeneralServicesCallback,
       submitBooking,
       bookingResult,
       submitting,
       submitError,
       clearSubmitError,
+      resetBookingState,
     }),
     [
       veterinarians,
@@ -158,13 +225,21 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       loadingVetServices,
       availableSlots,
       loadingSlots,
+      generalServicesState,
+      loadingGeneralServices,
+      availableDays,
+      blockedDates,
+      loadingAvailability,
       fetchVetServicesFor,
       fetchSlotsFor,
+      fetchAvailabilityFor,
+      fetchGeneralServicesCallback,
       submitBooking,
       bookingResult,
       submitting,
       submitError,
       clearSubmitError,
+      resetBookingState,
     ],
   );
 

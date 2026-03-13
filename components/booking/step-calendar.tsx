@@ -10,9 +10,9 @@ import {
   type DateValue,
 } from "@heroui/react";
 import {Icon} from "@iconify/react";
-import {isWeekend} from "@internationalized/date";
+import {getDayOfWeek, getLocalTimeZone, today} from "@internationalized/date";
 import {format} from "date-fns";
-import {enUS} from "date-fns/locale";
+import {es} from "date-fns/locale";
 import {motion} from "framer-motion";
 import {useEffect, useMemo, useRef, useState} from "react";
 import {useBooking} from "./booking-context";
@@ -168,7 +168,8 @@ function CalendarTimeSelect({
 
 interface StepCalendarProps {
   calendarId: string;
-  vetServiceId: string;
+  vetServiceId?: string;
+  serviceId?: string;
   selectedDate: DateValue;
   onDateChange: (date: DateValue) => void;
   selectedTime: string;
@@ -180,6 +181,7 @@ interface StepCalendarProps {
 export default function StepCalendar({
   calendarId,
   vetServiceId,
+  serviceId,
   selectedDate,
   onDateChange,
   selectedTime,
@@ -187,13 +189,17 @@ export default function StepCalendar({
   onBack,
   onNext,
 }: StepCalendarProps) {
-  const {availableSlots, loadingSlots, fetchSlotsFor} = useBooking();
+  const {availableSlots, loadingSlots, fetchSlotsFor, availableDays, blockedDates, fetchAvailabilityFor} = useBooking();
   const [timeFormat, setTimeFormat] = useState<TimeFormatEnum>(TimeFormatEnum.TwelveHour);
 
   useEffect(() => {
+    fetchAvailabilityFor(calendarId);
+  }, [calendarId, fetchAvailabilityFor]);
+
+  useEffect(() => {
     const dateString = selectedDate.toString();
-    fetchSlotsFor(calendarId, dateString, vetServiceId);
-  }, [selectedDate, calendarId, vetServiceId, fetchSlotsFor]);
+    fetchSlotsFor(calendarId, dateString, vetServiceId, serviceId);
+  }, [selectedDate, calendarId, vetServiceId, serviceId, fetchSlotsFor]);
 
   const onTimeFormatChange = (selectedKey: React.Key) => {
     const timeFormatIndex = timeFormats.findIndex((tf) => tf.key === selectedKey);
@@ -204,14 +210,26 @@ export default function StepCalendar({
   };
 
   const timeSlots = useMemo(() => {
-    return availableSlots.map((slot): TimeSlot => ({
-      value: slot.slot_start,
-      label: formatSlotTime(slot.slot_start, timeFormat),
-    }));
+    // Compact scheduling: only offer the next slot adjacent to the booked block.
+    // Scan from the start of the day, skip booked slots, take only the first available one.
+    const firstAvailable = availableSlots.find((slot) => slot.is_available === true);
+    if (!firstAvailable) return [];
+    return [{
+      value: firstAvailable.slot_start,
+      label: formatSlotTime(firstAvailable.slot_start, timeFormat),
+    }];
   }, [availableSlots, timeFormat]);
 
+  const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
   const isDateUnavailable = (date: DateValue) => {
-    return isWeekend(date, "en-US");
+    const dayOfWeek = getDayOfWeek(date, 'en-US');
+    const dayName = dayNameMap[dayOfWeek];
+    // Block days the vet doesn't work (once availability is loaded)
+    if (availableDays.length > 0 && !availableDays.includes(dayName)) return true;
+    // Block specific blocked dates
+    if (blockedDates.includes(date.toString())) return true;
+    return false;
   };
 
   return (
@@ -235,6 +253,7 @@ export default function StepCalendar({
             content: "w-full",
           }}
           isDateUnavailable={isDateUnavailable}
+          minValue={today(getLocalTimeZone())}
           value={selectedDate}
           weekdayStyle="short"
           onChange={onDateChange}
@@ -246,7 +265,7 @@ export default function StepCalendar({
           selectedTime={selectedTime}
           timeFormat={timeFormat}
           timeSlots={timeSlots}
-          weekday={format(selectedDate.toString(), "EEE", {locale: enUS})}
+          weekday={format(selectedDate.toString(), "EEE", {locale: es})}
           onConfirm={onNext}
           onTimeChange={onTimeChange}
           onTimeFormatChange={onTimeFormatChange}

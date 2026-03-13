@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 import type { DateValue } from "@heroui/react";
-import type { Veterinarian, VeterinarianService } from "@/lib/booking";
+import type { Veterinarian, VeterinarianService, GeneralService } from "@/lib/booking";
 import type { BookingStepType, TimeSlot } from "./calendar-types";
 import { useBooking } from "./booking-context";
 import StepServiceSelection from "./step-service-selection";
@@ -41,16 +41,19 @@ export default function BookingWizard({
   initialVetId,
   initialVetServiceId,
 }: BookingWizardProps) {
-  const { veterinarians, vetServices, loadingVets, fetchVetServicesFor } = useBooking();
+  const { veterinarians, vetServices, loadingVets, fetchVetServicesFor, resetBookingState } = useBooking();
 
   const [mounted, setMounted] = useState(false);
   const [currentStep, setCurrentStep] = useState<BookingStepType>("service_selection");
   const [selectedVet, setSelectedVet] = useState<Veterinarian | null>(null);
   const [selectedVetService, setSelectedVetService] = useState<VeterinarianService | null>(null);
+  const [selectedGeneralService, setSelectedGeneralService] = useState<GeneralService | null>(null);
   const [selectedDate, setSelectedDate] = useState<DateValue>(() => today(getLocalTimeZone()));
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [selectedTimeSlotRange, setSelectedTimeSlotRange] = useState<TimeSlot[]>([]);
   const [clientData, setClientData] = useState<ClientFormData | null>(null);
+
+  const isGeneralFlow = selectedGeneralService !== null;
 
   useEffect(() => {
     setMounted(true);
@@ -89,14 +92,31 @@ export default function BookingWizard({
     [],
   );
 
-  const handleReschedule = useCallback(() => {
-    setCurrentStep("service_selection");
+  const handleGeneralServiceSelect = useCallback((service: GeneralService) => {
+    setSelectedGeneralService(service);
     setSelectedVet(null);
     setSelectedVetService(null);
+    setCurrentStep("calendar");
+  }, []);
+
+  const handleChangeTime = useCallback(() => {
+    resetBookingState();
     setSelectedTime("");
     setSelectedTimeSlotRange([]);
     setClientData(null);
-  }, []);
+    setCurrentStep("calendar");
+  }, [resetBookingState]);
+
+  const handleReschedule = useCallback(() => {
+    resetBookingState();
+    setCurrentStep("service_selection");
+    setSelectedVet(null);
+    setSelectedVetService(null);
+    setSelectedGeneralService(null);
+    setSelectedTime("");
+    setSelectedTimeSlotRange([]);
+    setClientData(null);
+  }, [resetBookingState]);
 
   if (!mounted || loadingVets) {
     return (
@@ -106,12 +126,18 @@ export default function BookingWizard({
     );
   }
 
-  const calendarId = selectedVet?.calendar_id ?? "";
+  const calendarId = isGeneralFlow
+    ? selectedGeneralService.calendar_id
+    : selectedVet?.calendar_id ?? "";
+
   const dateFormatted = format(
     new Date(selectedDate.toString()),
     "EEEE, d 'de' MMMM yyyy",
     { locale: es },
   );
+
+  const canShowCalendar = calendarId && (isGeneralFlow || selectedVetService);
+  const canShowConfirmation = clientData && (isGeneralFlow || (selectedVet && selectedVetService));
 
   return (
     <div className={`flex w-full flex-1 flex-col gap-5 ${currentStep === "confirmation" ? "overflow-y-auto" : "overflow-hidden"}`}>
@@ -148,6 +174,7 @@ export default function BookingWizard({
             onVetChange={(vet) => {
               setSelectedVet(vet);
               setSelectedVetService(null);
+              setSelectedGeneralService(null);
               if (vet) {
                 fetchVetServicesFor(vet.id);
               }
@@ -155,14 +182,16 @@ export default function BookingWizard({
             onVetServiceChange={(service) => {
               setSelectedVetService(service);
             }}
+            onGeneralServiceSelect={handleGeneralServiceSelect}
             onNext={() => setCurrentStep("calendar")}
           />
         )}
 
-        {currentStep === "calendar" && calendarId && selectedVetService && (
+        {currentStep === "calendar" && canShowCalendar && (
           <StepCalendar
             calendarId={calendarId}
-            vetServiceId={selectedVetService.id}
+            vetServiceId={isGeneralFlow ? undefined : selectedVetService!.id}
+            serviceId={isGeneralFlow ? selectedGeneralService.id : undefined}
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             onBack={() => setCurrentStep("service_selection")}
@@ -179,16 +208,19 @@ export default function BookingWizard({
           />
         )}
 
-        {currentStep === "confirmation" && selectedVet && selectedVetService && clientData && (
+        {currentStep === "confirmation" && canShowConfirmation && (
           <StepConfirmation
-            veterinarian={selectedVet}
-            vetService={selectedVetService}
+            veterinarian={isGeneralFlow ? undefined : selectedVet!}
+            vetService={isGeneralFlow ? undefined : selectedVetService!}
+            generalServiceName={isGeneralFlow ? selectedGeneralService.name : undefined}
             calendarId={calendarId}
+            serviceId={isGeneralFlow ? selectedGeneralService.id : undefined}
             date={selectedDate.toString()}
             dateFormatted={dateFormatted}
             startTime={selectedTime}
             clientData={clientData}
             onReschedule={handleReschedule}
+            onChangeTime={handleChangeTime}
           />
         )}
       </div>
