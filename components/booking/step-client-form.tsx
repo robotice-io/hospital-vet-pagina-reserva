@@ -1,11 +1,12 @@
 "use client";
 
-import {Button, Form, Input, Select, SelectItem} from "@heroui/react";
+import {Button, Card, CardBody, Form, Input} from "@heroui/react";
+import {Icon} from "@iconify/react";
 import {useCallback, useState} from "react";
 
 const speciesOptions = [
-  {key: "Perro", label: "Perro"},
-  {key: "Gato", label: "Gato"},
+  {key: "Perro", label: "Perro", icon: "solar:bone-bold-duotone"},
+  {key: "Gato", label: "Gato", icon: "solar:cat-bold-duotone"},
 ];
 
 interface StepClientFormProps {
@@ -27,6 +28,7 @@ export default function StepClientForm({onBack, onSubmit}: StepClientFormProps) 
   const handleSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
+      if (!species) return;
       const formData = new FormData(e.target as HTMLFormElement);
       const phone = formData.get("phone") as string;
       const name = formData.get("name") as string;
@@ -70,29 +72,44 @@ export default function StepClientForm({onBack, onSubmit}: StepClientFormProps) 
             name="petName"
             placeholder=" "
           />
-          <Select
-            isRequired
-            classNames={{label: "text-tiny text-default-600"}}
-            label="Especie"
-            labelPlacement="outside"
-            placeholder="Selecciona"
-            selectedKeys={species ? [species] : []}
-            onSelectionChange={(keys) => {
-              const selected = Array.from(keys)[0];
-              setSpecies(selected ? String(selected) : "");
-            }}
-          >
-            {speciesOptions.map((option) => (
-              <SelectItem key={option.key}>{option.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-tiny text-default-600">
+              Especie <span className="text-danger">*</span>
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {speciesOptions.map((opt) => (
+                <Card
+                  key={opt.key}
+                  isPressable
+                  shadow="none"
+                  className={`transition-colors ${
+                    species === opt.key
+                      ? "border-2 border-primary bg-primary-50"
+                      : "border border-default-200 hover:border-default-400"
+                  }`}
+                  onPress={() => setSpecies(opt.key)}
+                >
+                  <CardBody className="flex-row items-center justify-center gap-2 p-3">
+                    <Icon
+                      icon={opt.icon}
+                      width={20}
+                      className={species === opt.key ? "text-primary" : "text-default-400"}
+                    />
+                    <span className={`text-small font-medium ${species === opt.key ? "text-primary" : "text-default-700"}`}>
+                      {opt.label}
+                    </span>
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
       <div className="flex w-full shrink-0 justify-end gap-2 pt-3">
         <Button variant="flat" onPress={onBack}>
           Volver
         </Button>
-        <Button color="primary" type="submit">
+        <Button color="primary" isDisabled={!species} type="submit">
           Confirmar Cita
         </Button>
       </div>

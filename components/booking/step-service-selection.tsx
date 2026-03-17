@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Avatar, Spinner, Chip, ScrollShadow } from "@heroui/react";
+import { Button, Card, CardBody, Avatar, Skeleton, Chip, ScrollShadow } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
@@ -52,8 +52,16 @@ export default function StepServiceSelection({
     fetchGeneralServices,
   } = useBooking();
 
-  const [phase, setPhase] = useState<Phase>("attention_type");
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
+  // Derive initial phase from wizard state so "back" navigation restores context
+  const initialGeneralFlow = !selectedVet && generalServices.length > 0;
+  const [phase, setPhase] = useState<Phase>(() => {
+    if (selectedVet) return "service";
+    if (initialGeneralFlow) return "general_service";
+    return "attention_type";
+  });
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(
+    () => selectedVet?.specialty ?? null,
+  );
 
   const specialties = useMemo(() => {
     const seen = new Map<string, string>();
@@ -209,8 +217,17 @@ export default function StepServiceSelection({
             </div>
             <div className="flex min-h-0 flex-1">
               {loadingGeneralServices ? (
-                <div className="flex flex-1 items-center justify-center">
-                  <Spinner />
+                <div className="w-full">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[1, 2, 3].map((i) => (
+                      <Card key={i} shadow="none" className="border border-default-200 p-4">
+                        <div className="flex flex-col items-center gap-2">
+                          <Skeleton className="h-4 w-3/4 rounded-md" />
+                          <Skeleton className="h-3 w-1/2 rounded-md" />
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <ScrollShadow hideScrollBar className="w-full">
@@ -280,8 +297,14 @@ export default function StepServiceSelection({
             </div>
             <div className="flex min-h-0 flex-1">
               {loadingVets ? (
-                <div className="flex flex-1 items-center justify-center">
-                  <Spinner />
+                <div className="w-full">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[1, 2, 3, 4].map((i) => (
+                      <Card key={i} shadow="none" className="border border-default-200 p-4">
+                        <Skeleton className="h-4 w-full rounded-md" />
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <ScrollShadow hideScrollBar className="w-full">
@@ -336,8 +359,18 @@ export default function StepServiceSelection({
             </div>
             <div className="flex min-h-0 flex-1">
               {loadingVets ? (
-                <div className="flex flex-1 items-center justify-center">
-                  <Spinner />
+                <div className="flex w-full flex-col gap-3">
+                  {[1, 2, 3].map((i) => (
+                    <Card key={i} shadow="none" className="border border-default-200 p-3">
+                      <CardBody className="flex-row items-center gap-3 p-0">
+                        <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                        <div className="flex flex-1 flex-col gap-1.5">
+                          <Skeleton className="h-3.5 w-3/4 rounded-md" />
+                          <Skeleton className="h-2.5 w-1/2 rounded-md" />
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ))}
                 </div>
               ) : (
                 <ScrollShadow hideScrollBar className="flex w-full flex-col gap-3">
@@ -404,8 +437,21 @@ export default function StepServiceSelection({
 
             <div className="flex min-h-0 flex-1">
               {loadingVetServices ? (
-                <div className="flex flex-1 items-center justify-center">
-                  <Spinner />
+                <div className="w-full">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {[1, 2].map((i) => (
+                      <Card key={i} shadow="none" className="border border-default-200">
+                        <div className="flex flex-col gap-2 p-4">
+                          <Skeleton className="h-4 w-3/4 rounded-md" />
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                          <div className="flex justify-between">
+                            <Skeleton className="h-3 w-12 rounded-md" />
+                            <Skeleton className="h-3 w-16 rounded-md" />
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <ScrollShadow hideScrollBar className="w-full">

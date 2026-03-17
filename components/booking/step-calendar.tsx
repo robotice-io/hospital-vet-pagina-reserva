@@ -4,13 +4,13 @@ import {
   Button,
   Calendar,
   ScrollShadow,
-  Spinner,
+  Skeleton,
   Tab,
   Tabs,
   type DateValue,
 } from "@heroui/react";
 import {Icon} from "@iconify/react";
-import {getDayOfWeek, getLocalTimeZone, today} from "@internationalized/date";
+import {CalendarDate, getDayOfWeek, getLocalTimeZone, today} from "@internationalized/date";
 import {format} from "date-fns";
 import {es} from "date-fns/locale";
 import {motion} from "framer-motion";
@@ -70,6 +70,7 @@ function CalendarTimeSlot({
             confirmRef.current?.focus();
           }}
         >
+          <Icon icon="solar:clock-circle-linear" width={14} className="mr-1 text-default-400" />
           {slot.label}
         </Button>
       </motion.div>
@@ -97,6 +98,7 @@ interface CalendarTimeSelectProps {
   day: number;
   timeSlots: TimeSlot[];
   loading: boolean;
+  isGeneralFlow: boolean;
   timeFormat: TimeFormatEnum;
   onTimeFormatChange: (selectedKey: React.Key) => void;
   selectedTime: string;
@@ -109,12 +111,28 @@ function CalendarTimeSelect({
   day,
   timeSlots,
   loading,
+  isGeneralFlow,
   timeFormat,
   onTimeFormatChange,
   selectedTime,
   onTimeChange,
   onConfirm,
 }: CalendarTimeSelectProps) {
+  const morningSlots = timeSlots.filter((s) => parseInt(s.value.split(":")[0], 10) < 12);
+  const afternoonSlots = timeSlots.filter((s) => parseInt(s.value.split(":")[0], 10) >= 12);
+  const showGroups = isGeneralFlow && timeSlots.length > 3;
+
+  const renderSlot = (slot: TimeSlot) => (
+    <CalendarTimeSlot
+      key={slot.value}
+      isSelected={slot.value === selectedTime}
+      slot={slot}
+      timeSlots={timeSlots}
+      onConfirm={onConfirm}
+      onTimeChange={onTimeChange}
+    />
+  );
+
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2 lg:w-[240px] lg:flex-none lg:self-stretch">
       <div className="flex w-full shrink-0 justify-between py-2">
@@ -140,25 +158,33 @@ function CalendarTimeSelect({
       </div>
       <div className="flex min-h-0 w-full flex-1">
         {loading ? (
-          <div className="flex w-full flex-1 items-center justify-center">
-            <Spinner />
+          <div className="flex w-full flex-col gap-2">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-9 w-full rounded-medium" />
+            ))}
           </div>
         ) : timeSlots.length === 0 ? (
           <div className="flex w-full flex-1 items-center justify-center text-small text-default-500">
             No hay horarios disponibles
           </div>
+        ) : showGroups ? (
+          <ScrollShadow hideScrollBar className="flex w-full flex-col gap-2">
+            {morningSlots.length > 0 && (
+              <>
+                <p className="text-tiny text-default-400 font-medium pt-1">Mañana</p>
+                {morningSlots.map(renderSlot)}
+              </>
+            )}
+            {afternoonSlots.length > 0 && (
+              <>
+                <p className="text-tiny text-default-400 font-medium pt-2">Tarde</p>
+                {afternoonSlots.map(renderSlot)}
+              </>
+            )}
+          </ScrollShadow>
         ) : (
           <ScrollShadow hideScrollBar className="flex w-full flex-col gap-2">
-            {timeSlots.map((slot) => (
-              <CalendarTimeSlot
-                key={slot.value}
-                isSelected={slot.value === selectedTime}
-                slot={slot}
-                timeSlots={timeSlots}
-                onConfirm={onConfirm}
-                onTimeChange={onTimeChange}
-              />
-            ))}
+            {timeSlots.map(renderSlot)}
           </ScrollShadow>
         )}
       </div>
@@ -189,12 +215,40 @@ export default function StepCalendar({
   onBack,
   onNext,
 }: StepCalendarProps) {
-  const {availableSlots, loadingSlots, fetchSlotsFor, availableDays, blockedDates, fetchAvailabilityFor} = useBooking();
+  const {availableSlots, loadingSlots, fetchSlotsFor, availableDays, blockedDates, loadingAvailability, fetchAvailabilityFor} = useBooking();
   const [timeFormat, setTimeFormat] = useState<TimeFormatEnum>(TimeFormatEnum.TwelveHour);
 
   useEffect(() => {
     fetchAvailabilityFor(calendarId);
   }, [calendarId, fetchAvailabilityFor]);
+
+  // Auto-advance to the first available date when availability loads
+  useEffect(() => {
+    if (loadingAvailability || availableDays.length === 0) return;
+
+    const tz = getLocalTimeZone();
+    const todayDate = today(tz);
+    const dayNameMap_ = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+    // Check if current selectedDate is available
+    const currentDow = getDayOfWeek(selectedDate, 'en-US');
+    const currentDayName = dayNameMap_[currentDow];
+    const currentBlocked = blockedDates.includes(selectedDate.toString());
+    const currentAvailable = availableDays.includes(currentDayName) && !currentBlocked;
+
+    if (currentAvailable) return; // Already on an available date
+
+    // Scan up to 30 days ahead to find the first available date
+    for (let i = 0; i <= 30; i++) {
+      const candidate = todayDate.add({ days: i });
+      const dow = getDayOfWeek(candidate, 'en-US');
+      const dayName = dayNameMap_[dow];
+      if (availableDays.includes(dayName) && !blockedDates.includes(candidate.toString())) {
+        onDateChange(candidate);
+        return;
+      }
+    }
+  }, [loadingAvailability, availableDays, blockedDates, selectedDate, onDateChange]);
 
   useEffect(() => {
     const dateString = selectedDate.toString();
@@ -254,6 +308,8 @@ export default function StepCalendar({
   const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
   const isDateUnavailable = (date: DateValue) => {
+    // Block all dates while availability is still loading
+    if (loadingAvailability) return true;
     const dayOfWeek = getDayOfWeek(date, 'en-US');
     const dayName = dayNameMap[dayOfWeek];
     // Block days the vet doesn't work (once availability is loaded)
@@ -262,6 +318,63 @@ export default function StepCalendar({
     if (blockedDates.includes(date.toString())) return true;
     return false;
   };
+
+  // Show full skeleton until availability config is loaded
+  if (loadingAvailability) {
+    return (
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-6">
+          {/* Calendar skeleton */}
+          <div className="w-full shrink-0 lg:w-[380px] lg:flex-none">
+            <div className="flex flex-col gap-3 p-2 lg:p-3">
+              {/* Month header */}
+              <div className="flex items-center justify-between pb-2">
+                <Skeleton className="h-4 w-32 rounded-md" />
+                <div className="flex gap-1">
+                  <Skeleton className="h-6 w-6 rounded-md" />
+                  <Skeleton className="h-6 w-6 rounded-md" />
+                </div>
+              </div>
+              {/* Weekday headers */}
+              <div className="grid grid-cols-7 gap-1">
+                {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <Skeleton key={`wh-${i}`} className="mx-auto h-3 w-6 rounded-sm" />
+                ))}
+              </div>
+              {/* Day grid — 5 rows */}
+              {[1, 2, 3, 4, 5].map((row) => (
+                <div key={`row-${row}`} className="grid grid-cols-7 gap-1">
+                  {[1, 2, 3, 4, 5, 6, 7].map((col) => (
+                    <Skeleton key={`d-${row}-${col}`} className="mx-auto h-9 w-full rounded-medium" />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Time slot skeleton */}
+          <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2 lg:w-[240px] lg:flex-none lg:self-stretch">
+            <div className="flex w-full shrink-0 justify-between py-2">
+              <Skeleton className="h-4 w-16 rounded-md" />
+              <Skeleton className="h-6 w-20 rounded-[7px]" />
+            </div>
+            <div className="flex w-full flex-col gap-2">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-9 w-full rounded-medium" />
+              ))}
+            </div>
+          </div>
+        </div>
+        <button
+          className="shrink-0 flex items-center gap-1 self-start text-small text-default-500 transition-colors hover:text-default-700"
+          type="button"
+          onClick={onBack}
+        >
+          <Icon icon="solar:arrow-left-linear" width={16} />
+          Volver
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-4">
@@ -292,11 +405,12 @@ export default function StepCalendar({
         </div>
         <CalendarTimeSelect
           day={selectedDate.day}
+          isGeneralFlow={!vetServiceId && !!serviceId}
           loading={loadingSlots}
           selectedTime={selectedTime}
           timeFormat={timeFormat}
           timeSlots={timeSlots}
-          weekday={format(selectedDate.toString(), "EEE", {locale: es})}
+          weekday={format(new Date(selectedDate.year, selectedDate.month - 1, selectedDate.day), "EEE", {locale: es})}
           onConfirm={onNext}
           onTimeChange={onTimeChange}
           onTimeFormatChange={onTimeFormatChange}

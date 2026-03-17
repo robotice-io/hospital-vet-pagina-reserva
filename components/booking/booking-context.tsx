@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
@@ -111,14 +112,23 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoadingVetServices(false));
   }, []);
 
+  const slotRequestId = useRef(0);
+
   const fetchSlotsFor = useCallback(
     (calendarId: string, date: string, vetServiceId?: string, serviceId?: string) => {
+      const requestId = ++slotRequestId.current;
       setLoadingSlots(true);
       setAvailableSlots([]);
       getAvailableSlots(calendarId, date, serviceId, vetServiceId)
-        .then(setAvailableSlots)
-        .catch(() => setAvailableSlots([]))
-        .finally(() => setLoadingSlots(false));
+        .then((slots) => {
+          if (requestId === slotRequestId.current) setAvailableSlots(slots);
+        })
+        .catch(() => {
+          if (requestId === slotRequestId.current) setAvailableSlots([]);
+        })
+        .finally(() => {
+          if (requestId === slotRequestId.current) setLoadingSlots(false);
+        });
     },
     [],
   );
@@ -131,7 +141,10 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoadingGeneralServices(false));
   }, []);
 
+  const availabilityRequestId = useRef(0);
+
   const fetchAvailabilityFor = useCallback((calendarId: string) => {
+    const requestId = ++availabilityRequestId.current;
     setLoadingAvailability(true);
     setAvailableDays([]);
     setBlockedDates([]);
@@ -140,14 +153,18 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       getBlockedDates(calendarId),
     ])
       .then(([days, blocked]) => {
+        if (requestId !== availabilityRequestId.current) return;
         setAvailableDays(days);
         setBlockedDates(blocked);
       })
       .catch(() => {
+        if (requestId !== availabilityRequestId.current) return;
         setAvailableDays([]);
         setBlockedDates([]);
       })
-      .finally(() => setLoadingAvailability(false));
+      .finally(() => {
+        if (requestId === availabilityRequestId.current) setLoadingAvailability(false);
+      });
   }, []);
 
   const submitBooking = useCallback(

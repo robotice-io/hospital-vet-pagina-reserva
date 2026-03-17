@@ -2,6 +2,7 @@
 
 import { Button, Chip, Divider, Link, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { motion } from "framer-motion";
 import type { Veterinarian, VeterinarianService } from "@/lib/booking";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -141,65 +142,100 @@ export default function StepConfirmation({
     ? generalServiceName
     : vetService?.label;
 
+  const details = [
+    {
+      icon: "solar:clipboard-list-linear",
+      label: "Servicio",
+      value: serviceName,
+    },
+    ...(!isGeneralFlow && veterinarian
+      ? [{
+          icon: "solar:user-rounded-linear",
+          label: "Especialista",
+          value: `${veterinarian.name} — ${veterinarian.specialty}`,
+        }]
+      : []),
+    {
+      icon: "solar:calendar-linear",
+      label: "Fecha y hora",
+      value: (
+        <>
+          {dateFormatted}
+          <br />
+          {formatTime(bookingResult.start_time)} -{" "}
+          {formatTime(bookingResult.end_time)}
+        </>
+      ),
+    },
+    {
+      icon: "solar:phone-linear",
+      label: "Cliente",
+      value: `${clientData.name} (${clientData.phone})`,
+    },
+  ];
+
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5 rounded-large bg-default-50 py-8 shadow-small">
       <div className="flex w-full flex-col items-center px-8">
-        <Icon
-          className="text-success-500 mb-3"
-          icon="solar:check-circle-bold-duotone"
-          width={56}
-        />
-        <p className="text-default-foreground mb-2 text-lg font-medium font-serif">
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+          className="mb-3"
+        >
+          <Icon
+            className="text-success-500"
+            icon="solar:check-circle-bold-duotone"
+            width={56}
+          />
+        </motion.div>
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="text-default-foreground mb-2 text-lg font-medium font-serif"
+        >
           ¡Tu cita ha sido agendada!
-        </p>
-        <p className="text-tiny text-default-500 text-center">
+        </motion.p>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="text-tiny text-default-500 text-center"
+        >
           Hemos enviado un correo con los detalles de tu cita.
-        </p>
+        </motion.p>
       </div>
 
       <Divider className="w-full" />
 
       <div className="flex w-full flex-col gap-4 px-8">
-        <div className="flex w-full flex-col gap-1">
-          <p className="text-small font-medium text-default-foreground">
-            Servicio
-          </p>
-          <p className="text-tiny text-default-500">{serviceName}</p>
-        </div>
-        {!isGeneralFlow && veterinarian && (
-          <div className="flex w-full flex-col gap-1">
-            <p className="text-small font-medium text-default-foreground">
-              Especialista
+        {details.map((detail, i) => (
+          <motion.div
+            key={detail.label}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 + i * 0.08 }}
+            className="flex w-full flex-col gap-1"
+          >
+            <p className="text-small font-medium text-default-foreground flex items-center gap-1.5">
+              <Icon icon={detail.icon} width={14} className="text-default-400" />
+              {detail.label}
             </p>
-            <p className="text-tiny text-default-500">
-              {veterinarian.name} — {veterinarian.specialty}
-            </p>
-          </div>
-        )}
-        <div className="flex w-full flex-col gap-1">
-          <p className="text-small font-medium text-default-foreground">
-            Fecha y hora
-          </p>
-          <p className="text-tiny text-default-500">
-            {dateFormatted}
-            <br />
-            {formatTime(bookingResult.start_time)} -{" "}
-            {formatTime(bookingResult.end_time)}
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-1">
-          <p className="text-small font-medium text-default-foreground">
-            Cliente
-          </p>
-          <p className="text-tiny text-default-500">
-            {clientData.name} ({clientData.phone})
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-1">
-          <p className="text-small font-medium text-default-foreground">
+            <p className="text-tiny text-default-500 pl-[22px]">{detail.value}</p>
+          </motion.div>
+        ))}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 + details.length * 0.08 }}
+          className="flex w-full flex-col gap-1"
+        >
+          <p className="text-small font-medium text-default-foreground flex items-center gap-1.5">
+            <Icon icon="solar:paw-bold" width={14} className="text-default-400" />
             Mascota
           </p>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 pl-[22px]">
             <p className="text-tiny text-default-500">{clientData.petName}</p>
             {clientData.species && (
               <Chip
@@ -213,20 +249,31 @@ export default function StepConfirmation({
               </Chip>
             )}
           </span>
-        </div>
+        </motion.div>
         {clientData.notes && (
-          <div className="flex w-full flex-col gap-1">
-            <p className="text-small font-medium text-default-foreground">
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 + (details.length + 1) * 0.08 }}
+            className="flex w-full flex-col gap-1"
+          >
+            <p className="text-small font-medium text-default-foreground flex items-center gap-1.5">
+              <Icon icon="solar:chat-line-linear" width={14} className="text-default-400" />
               Comentarios adicionales
             </p>
-            <p className="text-tiny text-default-500">{clientData.notes}</p>
-          </div>
+            <p className="text-tiny text-default-500 pl-[22px]">{clientData.notes}</p>
+          </motion.div>
         )}
       </div>
 
       <Divider className="w-full" />
 
-      <div className="flex flex-col items-center gap-2 px-8">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+        className="flex flex-col items-center gap-2 px-8"
+      >
         <p className="text-tiny text-default-500">¿Necesitas hacer un cambio?</p>
         <div className="flex items-center gap-2">
           <Link
@@ -249,7 +296,7 @@ export default function StepConfirmation({
             Cancelar
           </Link>
         </div>
-      </div>
+      </motion.div>
 
     </div>
   );
