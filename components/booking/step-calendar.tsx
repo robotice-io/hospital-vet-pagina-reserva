@@ -210,15 +210,46 @@ export default function StepCalendar({
   };
 
   const timeSlots = useMemo(() => {
-    // Compact scheduling: only offer the next slot adjacent to the booked block.
-    // Scan from the start of the day, skip booked slots, take only the first available one.
-    const firstAvailable = availableSlots.find((slot) => slot.is_available === true);
-    if (!firstAvailable) return [];
-    return [{
-      value: firstAvailable.slot_start,
-      label: formatSlotTime(firstAvailable.slot_start, timeFormat),
-    }];
-  }, [availableSlots, timeFormat]);
+    const isGeneralFlow = !vetServiceId && !!serviceId;
+
+    let slots: TimeSlot[];
+
+    if (isGeneralFlow) {
+      // General flow: show ALL available slots chronologically
+      slots = availableSlots
+        .filter((slot) => slot.is_available)
+        .map((slot): TimeSlot => ({
+          value: slot.slot_start,
+          label: formatSlotTime(slot.slot_start, timeFormat),
+        }));
+    } else {
+      // Specialist flow: compact scheduling — only the first available slot
+      const firstAvailable = availableSlots.find((slot) => slot.is_available === true);
+      if (!firstAvailable) return [];
+      slots = [{
+        value: firstAvailable.slot_start,
+        label: formatSlotTime(firstAvailable.slot_start, timeFormat),
+      }];
+    }
+
+    // Filter out past slots when the selected date is today
+    const tz = getLocalTimeZone();
+    const todayDate = today(tz);
+    if (
+      selectedDate.year === todayDate.year &&
+      selectedDate.month === todayDate.month &&
+      selectedDate.day === todayDate.day
+    ) {
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      slots = slots.filter((slot) => {
+        const [h, m] = slot.value.split(":");
+        return parseInt(h, 10) * 60 + parseInt(m, 10) > nowMinutes;
+      });
+    }
+
+    return slots;
+  }, [availableSlots, timeFormat, vetServiceId, serviceId, selectedDate]);
 
   const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 

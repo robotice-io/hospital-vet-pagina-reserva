@@ -131,7 +131,7 @@ export default function BookingWizard({
     : selectedVet?.calendar_id ?? "";
 
   const dateFormatted = format(
-    new Date(selectedDate.toString()),
+    new Date(selectedDate.year, selectedDate.month - 1, selectedDate.day),
     "EEEE, d 'de' MMMM yyyy",
     { locale: es },
   );
