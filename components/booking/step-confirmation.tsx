@@ -4,9 +4,11 @@ import { Button, Chip, Divider, Link, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
 import type { Veterinarian, VeterinarianService } from "@/lib/booking";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useBooking } from "./booking-context";
+import StepPaymentBrick from "./step-payment-brick";
+import { addMinutesToTime, normalizeTime } from "@/lib/payments";
 
 function formatTime(time: string): string {
   const [h, m] = time.split(":");
@@ -61,6 +63,9 @@ export default function StepConfirmation({
   const didSubmit = useRef(false);
 
   const isGeneralFlow = !veterinarian;
+  const requiresDeposit =
+    !isGeneralFlow && (vetService?.deposit_amount ?? 0) > 0;
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   const bookingParams = useMemo(
     () => ({
@@ -90,10 +95,11 @@ export default function StepConfirmation({
   );
 
   useEffect(() => {
+    if (requiresDeposit) return; // payment flow handles confirmation
     if (didSubmit.current) return;
     didSubmit.current = true;
     submitBooking(bookingParams).catch(() => {});
-  }, []);
+  }, [requiresDeposit]);
 
   const handleRetry = () => {
     clearSubmitError();
@@ -101,7 +107,22 @@ export default function StepConfirmation({
     submitBooking(bookingParams).catch(() => {});
   };
 
-  if (submitting && !bookingResult) {
+  if (requiresDeposit && !paymentConfirmed && veterinarian && vetService) {
+    return (
+      <StepPaymentBrick
+        veterinarian={veterinarian}
+        vetService={vetService}
+        date={date}
+        startTime={startTime}
+        clientData={clientData}
+        onConfirmed={() => setPaymentConfirmed(true)}
+        onSlotTaken={onChangeTime}
+        onCancel={onChangeTime}
+      />
+    );
+  }
+
+  if (submitting && !bookingResult && !paymentConfirmed) {
     return (
       <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5 rounded-large bg-default-50 py-12 shadow-small">
         <Spinner color="primary" size="lg" />
@@ -134,9 +155,14 @@ export default function StepConfirmation({
     );
   }
 
-  if (!bookingResult) {
+  if (!bookingResult && !paymentConfirmed) {
     return null;
   }
+
+  const effectiveStartTime = bookingResult?.start_time ?? normalizeTime(startTime);
+  const effectiveEndTime =
+    bookingResult?.end_time ??
+    addMinutesToTime(normalizeTime(startTime), vetService?.duration_minutes ?? 0);
 
   const serviceName = isGeneralFlow
     ? generalServiceName
@@ -162,8 +188,8 @@ export default function StepConfirmation({
         <>
           {dateFormatted}
           <br />
-          {formatTime(bookingResult.start_time)} -{" "}
-          {formatTime(bookingResult.end_time)}
+          {formatTime(effectiveStartTime)} -{" "}
+          {formatTime(effectiveEndTime)}
         </>
       ),
     },

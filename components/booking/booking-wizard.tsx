@@ -181,7 +181,7 @@ export default function BookingWizard({
   const canShowConfirmation = clientData && (isGeneralFlow || (selectedVet && selectedVetService));
 
   return (
-    <div className={`flex w-full flex-1 flex-col gap-5 ${currentStep === "confirmation" ? "overflow-y-auto" : "overflow-hidden"}`}>
+    <div className="flex w-full flex-1 flex-col gap-5">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-1.5">
           {steps.map((step, index) => (
@@ -217,6 +217,22 @@ export default function BookingWizard({
           exit="exit"
           transition={{ duration: 0.25 }}
           className="flex min-h-0 flex-1 flex-col"
+          onAnimationComplete={(definition) => {
+            // Strip residual transform after the slide-in finishes.
+            // Mobile WebKit/Blink mishandle touch events on iframes nested
+            // inside ancestors with any transform value (including translate(0,0)),
+            // which breaks the MP card brick's secure fields after first focus.
+            if (definition === "center" && currentStep === "confirmation") {
+              const el = document.querySelector<HTMLElement>(
+                `[data-wizard-step="${currentStep}"]`,
+              );
+              if (el) {
+                el.style.transform = "none";
+                el.style.willChange = "auto";
+              }
+            }
+          }}
+          data-wizard-step={currentStep}
         >
           {currentStep === "service_selection" && (
             <StepServiceSelection

@@ -44,6 +44,7 @@ export interface VeterinarianService {
   holiday_price: number | null;
   duration_minutes: number;
   is_active: boolean;
+  deposit_amount: number | null;
 }
 
 export interface GeneralService {

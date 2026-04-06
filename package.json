@@ -12,6 +12,7 @@
     "@heroui/react": "2.8.9",
     "@iconify/react": "^5.2.0",
     "@internationalized/date": "^3.11.0",
+    "@mercadopago/sdk-react": "^1.0.7",
     "@supabase/supabase-js": "^2.98.0",
     "clsx": "2.1.1",
     "date-fns": "^4.1.0",
