@@ -11,3 +11,53 @@
   --font-serif: Georgia, serif;
   --font-mono: "monospace", monospace;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Mercado Pago Card Payment Brick — typography overrides via HTML/CSS
+   inheritance (per MP docs: "Utilice la herencia de elementos HTML para
+   acceder a lo que necesita personalizar"). `label` and `::placeholder`
+   are stable HTML/CSS selectors, not MP's auto-generated classes — safe.
+   These rules only reach the non-iframe inputs (cardholder name, email,
+   document) plus all labels. The PCI iframes (card #, expiry, CVV) are
+   styled by MP and inherit font-family from the wrapper div.
+   ───────────────────────────────────────────────────────────────────── */
+.hvi-brick-host label {
+  font-family: Georgia, "Times New Roman", Times, serif !important;
+}
+
+.hvi-brick-host input::placeholder {
+  font-family: "DM Sans", system-ui, sans-serif !important;
+  opacity: 1 !important;
+}
+
+/* The wrapper div sets font-family: Space Mono so the PCI iframes (card
+   number / expiry / CVV) inherit it. That same inline font cascades into
+   non-iframe elements like the "Tu correo" section title and validation
+   alerts. Reset those back to a normal font. */
+.hvi-brick-host h1,
+.hvi-brick-host h2,
+.hvi-brick-host h3,
+.hvi-brick-host h4,
+.hvi-brick-host [role="alert"],
+.hvi-brick-host [role="alert"] * {
+  font-family: "DM Sans", system-ui, sans-serif !important;
+}
+
+/* Hide the "Tu correo" section title — we don't need it, the email
+   field's own label is enough. (h2 is only used for that section in
+   our brick config since we restrict paymentMethods to maxInstallments:1
+   and there is no installments section title.) */
+.hvi-brick-host h2 {
+  display: none !important;
+}
+
+/* Tighter inter-field vertical spacing. Every field starts with a <label>;
+   margin-top on the label controls the gap between fields. The very first
+   label gets no top margin so the form doesn't push down. */
+.hvi-brick-host label {
+  margin-top: 8px !important;
+}
+.hvi-brick-host label:first-of-type,
+.hvi-brick-host form > :first-child label {
+  margin-top: 0 !important;
+}

@@ -6,6 +6,7 @@ import { getLocalTimeZone, today } from "@internationalized/date";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
 
 import type { DateValue } from "@heroui/react";
 import type { Veterinarian, VeterinarianService, GeneralService } from "@/lib/booking";
@@ -15,6 +16,7 @@ import StepServiceSelection from "./step-service-selection";
 import StepCalendar from "./step-calendar";
 import StepClientForm from "./step-client-form";
 import StepConfirmation from "./step-confirmation";
+import StepPaymentBrick from "./step-payment-brick";
 
 interface ClientFormData {
   phone: string;
@@ -31,11 +33,19 @@ interface BookingWizardProps {
   initialVetServiceId?: string;
 }
 
-const steps: { key: BookingStepType; label: string }[] = [
+const baseSteps: { key: BookingStepType; label: string }[] = [
   { key: "service_selection", label: "Servicio" },
   { key: "calendar", label: "Fecha y Hora" },
   { key: "client_form", label: "Datos" },
-  { key: "confirmation", label: "Confirmación" },
+  { key: "confirmation", label: "Hora confirmada" },
+];
+
+const stepsWithPayment: { key: BookingStepType; label: string }[] = [
+  { key: "service_selection", label: "Servicio" },
+  { key: "calendar", label: "Fecha y Hora" },
+  { key: "client_form", label: "Datos" },
+  { key: "payment", label: "Pago reserva" },
+  { key: "confirmation", label: "Hora confirmada" },
 ];
 
 const stepVariants = {
@@ -61,6 +71,11 @@ export default function BookingWizard({
 
   const [mounted, setMounted] = useState(false);
   const [currentStep, setCurrentStep] = useState<BookingStepType>("service_selection");
+  const [serviceSelectionAttentionPhase, setServiceSelectionAttentionPhase] =
+    useState(true);
+  const [attentionType, setAttentionType] = useState<
+    "general" | "specialist" | null
+  >(null);
   const [stepDirection, setStepDirection] = useState(0);
   const [selectedVet, setSelectedVet] = useState<Veterinarian | null>(null);
   const [selectedVetService, setSelectedVetService] = useState<VeterinarianService | null>(null);
@@ -71,6 +86,14 @@ export default function BookingWizard({
   const [clientData, setClientData] = useState<ClientFormData | null>(null);
 
   const isGeneralFlow = selectedGeneralService !== null;
+  // Stepper shows 5 steps as soon as the user picks "Especialista" on the
+  // first page. Whether the actual payment step renders is still gated on
+  // the selected service having a deposit_amount > 0 (some specialists may
+  // not require it), so we keep that check on the routing side.
+  const isSpecialistFlow = attentionType === "specialist";
+  const hasDeposit = (selectedVetService?.deposit_amount ?? 0) > 0;
+  const requiresPayment = isSpecialistFlow && hasDeposit;
+  const steps = isSpecialistFlow ? stepsWithPayment : baseSteps;
 
   const goTo = useCallback((step: BookingStepType, direction: 1 | -1) => {
     setStepDirection(direction);
@@ -109,9 +132,9 @@ export default function BookingWizard({
   const handleClientFormSubmit = useCallback(
     (data: ClientFormData) => {
       setClientData(data);
-      goTo("confirmation", 1);
+      goTo(requiresPayment ? "payment" : "confirmation", 1);
     },
-    [goTo],
+    [goTo, requiresPayment],
   );
 
   const handleGeneralServiceSelect = useCallback((service: GeneralService) => {
@@ -137,31 +160,31 @@ export default function BookingWizard({
     setSelectedTime("");
     setSelectedTimeSlotRange([]);
     setClientData(null);
+    setAttentionType(null);
     goTo("service_selection", -1);
   }, [resetBookingState, goTo]);
 
   if (!mounted || loadingVets) {
     return (
-      <div className="flex w-full flex-1 flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-1.5">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-1 flex-1 rounded-full" />
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="mx-auto h-3 w-12 rounded-md" />
-            ))}
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-5">
+        {/* Logo placeholder — matches the attention_type header */}
+        <div className="flex justify-start pb-0">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-[46px] w-[46px] rounded-full" />
+            <div className="flex flex-col gap-1.5">
+              <Skeleton className="h-4 w-40 rounded-md" />
+              <Skeleton className="h-3 w-20 rounded-md" />
+            </div>
           </div>
         </div>
-        <div className="flex flex-1 flex-col gap-4 pt-4">
+        {/* Content placeholder — matches the two attention-type cards */}
+        <div className="flex flex-col gap-2">
           <Skeleton className="h-5 w-3/4 rounded-md" />
           <Skeleton className="h-3 w-1/2 rounded-md" />
-          <div className="flex flex-col gap-3 pt-2">
-            <Skeleton className="h-16 w-full rounded-large" />
-            <Skeleton className="h-16 w-full rounded-large" />
-          </div>
+        </div>
+        <div className="flex flex-col gap-3 pt-2">
+          <Skeleton className="h-20 w-full rounded-large" />
+          <Skeleton className="h-20 w-full rounded-large" />
         </div>
       </div>
     );
@@ -181,31 +204,70 @@ export default function BookingWizard({
   const canShowConfirmation = clientData && (isGeneralFlow || (selectedVet && selectedVetService));
 
   return (
-    <div className="flex w-full flex-1 flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-1.5">
-          {steps.map((step, index) => (
-            <div
-              key={step.key}
-              className={`h-1 flex-1 rounded-full transition-colors ${
-                index <= currentStepIndex ? "bg-primary" : "bg-default-200"
-              }`}
-            />
-          ))}
-        </div>
-        <div className="flex items-center">
-          {steps.map((step, index) => (
-            <span
-              key={step.key}
-              className={`flex-1 text-center text-tiny font-medium transition-colors ${
-                index <= currentStepIndex ? "text-primary" : "text-default-400"
-              }`}
-            >
-              {step.label}
-            </span>
-          ))}
-        </div>
-      </div>
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-5">
+      <AnimatePresence mode="wait">
+        {currentStep === "service_selection" && serviceSelectionAttentionPhase ? (
+          <motion.div
+            key="hvi-logo"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="flex justify-start pb-0"
+          >
+            <div className="flex items-center gap-2">
+              <Image
+                src="/hvi-logo.png"
+                alt="Hospital Veterinario Integral"
+                width={46}
+                height={46}
+                priority
+                className="rounded-full"
+              />
+              <div className="flex flex-col leading-tight">
+                <span className="text-medium font-semibold font-serif text-default-foreground">
+                  Hospital Veterinario
+                </span>
+                <span className="text-small tracking-[0.18em] text-default-500">
+                  INTEGRAL
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="stepper"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="flex flex-col gap-1 -mt-[5px]"
+          >
+            <div className="flex items-center gap-1.5">
+              {steps.map((step, index) => (
+                <div
+                  key={step.key}
+                  className={`h-1 flex-1 rounded-full transition-colors ${
+                    index <= currentStepIndex ? "bg-primary" : "bg-default-200"
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex items-center">
+              {steps.map((step, index) => (
+                <span
+                  key={step.key}
+                  className={`flex-1 text-center text-tiny font-medium transition-colors ${
+                    index <= currentStepIndex ? "text-primary" : "text-default-400"
+                  }`}
+                >
+                  {step.label}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait" custom={stepDirection}>
         <motion.div
@@ -251,6 +313,8 @@ export default function BookingWizard({
               }}
               onGeneralServiceSelect={handleGeneralServiceSelect}
               onNext={() => goTo("calendar", 1)}
+              onAttentionPhaseChange={setServiceSelectionAttentionPhase}
+              onAttentionTypeChange={setAttentionType}
             />
           )}
 
@@ -274,6 +338,23 @@ export default function BookingWizard({
               onSubmit={handleClientFormSubmit}
             />
           )}
+
+          {currentStep === "payment" &&
+            requiresPayment &&
+            clientData &&
+            selectedVet &&
+            selectedVetService && (
+              <StepPaymentBrick
+                veterinarian={selectedVet}
+                vetService={selectedVetService}
+                date={selectedDate.toString()}
+                startTime={selectedTime}
+                clientData={clientData}
+                onConfirmed={() => goTo("confirmation", 1)}
+                onSlotTaken={handleChangeTime}
+                onCancel={() => goTo("client_form", -1)}
+              />
+            )}
 
           {currentStep === "confirmation" && canShowConfirmation && (
             <StepConfirmation

@@ -13,4 +13,9 @@ export interface TimeSlot {
   label: string;
 }
 
-export type BookingStepType = "service_selection" | "calendar" | "client_form" | "confirmation";
+export type BookingStepType =
+  | "service_selection"
+  | "calendar"
+  | "client_form"
+  | "payment"
+  | "confirmation";

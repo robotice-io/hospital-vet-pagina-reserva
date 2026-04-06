@@ -542,28 +542,31 @@ export default function StepPaymentBrick({
 
   // awaiting_payment | processing | confirmed
   return (
-    <div className="relative z-10 mx-auto flex min-h-0 w-full max-w-sm flex-1 flex-col rounded-large bg-default-50 shadow-small">
-      <div className="relative flex flex-col items-center gap-0.5 px-4 pt-3 pb-0">
+    <div className="mx-auto -mb-6 -mt-[10px] flex min-h-0 w-full max-w-sm flex-1 flex-col">
+    <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-large bg-default-50 shadow-small">
+      <div className="flex items-center gap-2 px-3 pt-2 pb-1">
         <button
           type="button"
           aria-label="Volver"
           onClick={onCancel}
-          className="absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded-full text-default-500 hover:bg-default-100 hover:text-default-700"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-default-500 hover:bg-default-100 hover:text-default-700"
         >
           <Icon icon="solar:arrow-left-linear" width={20} />
         </button>
-        <p className="text-default-foreground text-2xl font-medium font-serif leading-tight">
-          Pago de reserva
-        </p>
-        <p className="text-tiny text-default-500 text-center">
-          {veterinarian.name} — {vetService.label}
-        </p>
-        <p className="mt-0.5 flex items-baseline gap-1.5">
-          <span className="text-tiny text-default-500">Valor reserva:</span>
-          <span className="text-2xl font-semibold font-serif text-primary">
+        <div className="flex min-w-0 flex-1 flex-col leading-tight">
+          <span className="truncate text-tiny font-medium text-default-foreground">
+            {veterinarian.name}
+          </span>
+          <span className="truncate text-tiny text-default-500">
+            {vetService.label}
+          </span>
+        </div>
+        <div className="flex shrink-0 flex-col items-end leading-tight">
+          <span className="text-tiny text-default-500">Valor reserva</span>
+          <span className="text-xl font-semibold font-serif text-primary">
             {formatCLP(depositAmount)}
           </span>
-        </p>
+        </div>
       </div>
 
       {state === "confirmed" ? (
@@ -617,10 +620,14 @@ export default function StepPaymentBrick({
         </div>
       ) : (
         <div
-          className="relative z-20"
+          className="hvi-brick-host relative z-20 -mt-3"
           style={{
-            // Brick inherits font-family from its container per MP docs
-            fontFamily: "var(--font-sans), system-ui, sans-serif",
+            // The MP secure-field iframes read the computed font-family of
+            // this wrapper and inject it into their internal stylesheet.
+            // Use sans here so the secure field placeholders render in
+            // DM Sans; labels are overridden separately to Georgia via the
+            // #cardPaymentBrick_container label rule in globals.css.
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
           }}
         >
           {initialization && (
@@ -632,16 +639,9 @@ export default function StepPaymentBrick({
               onError={onBrickError}
             />
           )}
-          {brickReady && (
-            <div className="flex items-center justify-center gap-1.5 px-4 pb-2">
-              <Icon
-                icon="simple-icons:mercadopago"
-                width={16}
-                style={{ color: "#00B1EA" }}
-              />
-              <span className="text-tiny font-medium text-default-400">
-                Mercado Pago
-              </span>
+          {!brickReady && (
+            <div className="absolute inset-0 z-30 bg-default-50">
+              <BrickSkeleton />
             </div>
           )}
         </div>
@@ -659,11 +659,21 @@ export default function StepPaymentBrick({
           >
             Pagar reserva
           </Button>
-          {hold?.expiresAt && (
-            <Countdown expiresAt={hold.expiresAt} onExpire={handleExpire} />
-          )}
         </div>
       )}
+    </div>
+    {brickReady && state === "awaiting_payment" && (
+      <div className="flex items-center justify-center gap-1.5 pt-2 pb-[10px]">
+        <Icon
+          icon="simple-icons:mercadopago"
+          width={16}
+          style={{ color: "#00B1EA" }}
+        />
+        <span className="text-tiny font-medium text-default-400">
+          Mercado Pago
+        </span>
+      </div>
+    )}
     </div>
   );
 }

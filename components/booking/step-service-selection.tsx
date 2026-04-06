@@ -3,7 +3,7 @@
 import { Button, Card, CardBody, Avatar, Skeleton, Chip, ScrollShadow } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { Veterinarian, VeterinarianService, GeneralService } from "@/lib/booking";
 
@@ -16,6 +16,8 @@ interface StepServiceSelectionProps {
   onVetServiceChange: (service: VeterinarianService) => void;
   onGeneralServiceSelect: (service: GeneralService) => void;
   onNext: () => void;
+  onAttentionPhaseChange?: (isAttentionPhase: boolean) => void;
+  onAttentionTypeChange?: (type: "general" | "specialist" | null) => void;
 }
 
 const fadeVariants = {
@@ -41,6 +43,8 @@ export default function StepServiceSelection({
   onVetServiceChange,
   onGeneralServiceSelect,
   onNext,
+  onAttentionPhaseChange,
+  onAttentionTypeChange,
 }: StepServiceSelectionProps) {
   const {
     veterinarians,
@@ -63,6 +67,10 @@ export default function StepServiceSelection({
     () => selectedVet?.specialty ?? null,
   );
 
+  useEffect(() => {
+    onAttentionPhaseChange?.(phase === "attention_type");
+  }, [phase, onAttentionPhaseChange]);
+
   const specialties = useMemo(() => {
     const seen = new Map<string, string>();
     veterinarians.forEach((v) => {
@@ -83,6 +91,7 @@ export default function StepServiceSelection({
   }, [veterinarians, selectedSpecialty]);
 
   const handleAttentionType = (type: "general" | "specialist") => {
+    onAttentionTypeChange?.(type);
     if (type === "general") {
       fetchGeneralServices();
       setPhase("general_service");
@@ -117,10 +126,14 @@ export default function StepServiceSelection({
   const handleBackFromSpecialty = () => {
     setSelectedSpecialty(null);
     setPhase("attention_type");
+    // Don't reset attentionType here — the stepper is still mid-fade-out and
+    // changing the steps array would cause a 4↔5 dot flash. The next call to
+    // handleAttentionType will overwrite it with the new selection.
   };
 
   const handleBackFromGeneralService = () => {
     setPhase("attention_type");
+    // Same reason as handleBackFromSpecialty.
   };
 
   return (

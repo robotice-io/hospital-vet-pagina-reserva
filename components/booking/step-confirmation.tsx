@@ -4,10 +4,9 @@ import { Button, Chip, Divider, Link, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
 import type { Veterinarian, VeterinarianService } from "@/lib/booking";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { useBooking } from "./booking-context";
-import StepPaymentBrick from "./step-payment-brick";
 import { addMinutesToTime, normalizeTime } from "@/lib/payments";
 
 function formatTime(time: string): string {
@@ -63,9 +62,11 @@ export default function StepConfirmation({
   const didSubmit = useRef(false);
 
   const isGeneralFlow = !veterinarian;
-  const requiresDeposit =
+  // Specialist services with a deposit have already had the appointment
+  // confirmed by the payment step (payments-process-card + webhook).
+  // We must NOT call submitBooking again — just render the success card.
+  const alreadyConfirmedByPayment =
     !isGeneralFlow && (vetService?.deposit_amount ?? 0) > 0;
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   const bookingParams = useMemo(
     () => ({
@@ -95,11 +96,11 @@ export default function StepConfirmation({
   );
 
   useEffect(() => {
-    if (requiresDeposit) return; // payment flow handles confirmation
+    if (alreadyConfirmedByPayment) return;
     if (didSubmit.current) return;
     didSubmit.current = true;
     submitBooking(bookingParams).catch(() => {});
-  }, [requiresDeposit]);
+  }, [alreadyConfirmedByPayment]);
 
   const handleRetry = () => {
     clearSubmitError();
@@ -107,22 +108,7 @@ export default function StepConfirmation({
     submitBooking(bookingParams).catch(() => {});
   };
 
-  if (requiresDeposit && !paymentConfirmed && veterinarian && vetService) {
-    return (
-      <StepPaymentBrick
-        veterinarian={veterinarian}
-        vetService={vetService}
-        date={date}
-        startTime={startTime}
-        clientData={clientData}
-        onConfirmed={() => setPaymentConfirmed(true)}
-        onSlotTaken={onChangeTime}
-        onCancel={onChangeTime}
-      />
-    );
-  }
-
-  if (submitting && !bookingResult && !paymentConfirmed) {
+  if (submitting && !bookingResult && !alreadyConfirmedByPayment) {
     return (
       <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5 rounded-large bg-default-50 py-12 shadow-small">
         <Spinner color="primary" size="lg" />
@@ -155,7 +141,7 @@ export default function StepConfirmation({
     );
   }
 
-  if (!bookingResult && !paymentConfirmed) {
+  if (!bookingResult && !alreadyConfirmedByPayment) {
     return null;
   }
 
