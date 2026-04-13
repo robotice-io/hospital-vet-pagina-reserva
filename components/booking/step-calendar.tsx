@@ -365,7 +365,7 @@ export default function StepCalendar({
           }}
           isDateUnavailable={isDateUnavailable}
           minValue={today(getLocalTimeZone())}
-          // @ts-expect-error — DateValue from @internationalized/date vs HeroUI's re-export have conflicting #private fields
+          // @ts-ignore — DateValue from @internationalized/date vs HeroUI's re-export have conflicting #private fields
           value={selectedDate}
           weekdayStyle="short"
           onChange={onDateChange}
