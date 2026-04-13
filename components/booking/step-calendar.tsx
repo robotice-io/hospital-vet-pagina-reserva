@@ -5,19 +5,15 @@ import {
   Calendar,
   ScrollShadow,
   Skeleton,
-  Tab,
-  Tabs,
   type DateValue,
 } from "@heroui/react";
 import {Icon} from "@iconify/react";
 import {CalendarDate, getDayOfWeek, getLocalTimeZone, today} from "@internationalized/date";
-import {format} from "date-fns";
-import {es} from "date-fns/locale";
 import {motion} from "framer-motion";
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef} from "react";
 import {useBooking} from "./booking-context";
 import type {TimeSlot} from "./calendar-types";
-import {TimeFormatEnum, timeFormats} from "./calendar-types";
+import {TimeFormatEnum} from "./calendar-types";
 
 function formatSlotTime(time: string, format: TimeFormatEnum): string {
   const [h, m] = time.split(":");
@@ -94,26 +90,18 @@ function CalendarTimeSlot({
 }
 
 interface CalendarTimeSelectProps {
-  weekday: string;
-  day: number;
   timeSlots: TimeSlot[];
   loading: boolean;
   isGeneralFlow: boolean;
-  timeFormat: TimeFormatEnum;
-  onTimeFormatChange: (selectedKey: React.Key) => void;
   selectedTime: string;
   onTimeChange: (time: string, selectedTimeSlotRange?: TimeSlot[]) => void;
   onConfirm: () => void;
 }
 
 function CalendarTimeSelect({
-  weekday,
-  day,
   timeSlots,
   loading,
   isGeneralFlow,
-  timeFormat,
-  onTimeFormatChange,
   selectedTime,
   onTimeChange,
   onConfirm,
@@ -135,27 +123,6 @@ function CalendarTimeSelect({
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2 lg:w-[240px] lg:flex-none lg:self-stretch">
-      <div className="flex w-full shrink-0 justify-between py-2">
-        <p className="text-small flex items-center">
-          <span className="text-default-700">{weekday}</span>
-          &nbsp;
-          <span className="text-default-500">{day}</span>
-        </p>
-        <Tabs
-          classNames={{
-            tab: "h-6 py-0.5 px-1.5",
-            tabList: "p-0.5 rounded-[7px] gap-0.5",
-            cursor: "rounded-md",
-          }}
-          selectedKey={timeFormat}
-          size="sm"
-          onSelectionChange={onTimeFormatChange}
-        >
-          {timeFormats.map((tf) => (
-            <Tab key={tf.key} title={tf.label} />
-          ))}
-        </Tabs>
-      </div>
       <div className="flex min-h-0 w-full flex-1">
         {loading ? (
           <div className="flex w-full flex-col gap-2">
@@ -216,7 +183,7 @@ export default function StepCalendar({
   onNext,
 }: StepCalendarProps) {
   const {availableSlots, loadingSlots, fetchSlotsFor, availableDays, blockedDates, loadingAvailability, fetchAvailabilityFor} = useBooking();
-  const [timeFormat, setTimeFormat] = useState<TimeFormatEnum>(TimeFormatEnum.TwelveHour);
+  const timeFormat = TimeFormatEnum.TwelveHour;
 
   useEffect(() => {
     fetchAvailabilityFor(calendarId);
@@ -254,14 +221,6 @@ export default function StepCalendar({
     const dateString = selectedDate.toString();
     fetchSlotsFor(calendarId, dateString, vetServiceId, serviceId);
   }, [selectedDate, calendarId, vetServiceId, serviceId, fetchSlotsFor]);
-
-  const onTimeFormatChange = (selectedKey: React.Key) => {
-    const timeFormatIndex = timeFormats.findIndex((tf) => tf.key === selectedKey);
-
-    if (timeFormatIndex !== -1) {
-      setTimeFormat(timeFormats[timeFormatIndex].key);
-    }
-  };
 
   const timeSlots = useMemo(() => {
     const isGeneralFlow = !vetServiceId && !!serviceId;
@@ -322,7 +281,15 @@ export default function StepCalendar({
   // Show full skeleton until availability config is loaded
   if (loadingAvailability) {
     return (
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-2">
+        <button
+          className="shrink-0 flex items-center gap-1 self-start text-small text-default-500 transition-colors hover:text-default-700"
+          type="button"
+          onClick={onBack}
+        >
+          <Icon icon="solar:arrow-left-linear" width={16} />
+          Volver
+        </button>
         <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-6">
           {/* Calendar skeleton */}
           <div className="w-full shrink-0 lg:w-[380px] lg:flex-none">
@@ -353,10 +320,6 @@ export default function StepCalendar({
           </div>
           {/* Time slot skeleton */}
           <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2 lg:w-[240px] lg:flex-none lg:self-stretch">
-            <div className="flex w-full shrink-0 justify-between py-2">
-              <Skeleton className="h-4 w-16 rounded-md" />
-              <Skeleton className="h-6 w-20 rounded-[7px]" />
-            </div>
             <div className="flex w-full flex-col gap-2">
               {[1, 2, 3, 4].map((i) => (
                 <Skeleton key={i} className="h-9 w-full rounded-medium" />
@@ -364,20 +327,20 @@ export default function StepCalendar({
             </div>
           </div>
         </div>
-        <button
-          className="shrink-0 flex items-center gap-1 self-start text-small text-default-500 transition-colors hover:text-default-700"
-          type="button"
-          onClick={onBack}
-        >
-          <Icon icon="solar:arrow-left-linear" width={16} />
-          Volver
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-4">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-2">
+      <button
+        className="shrink-0 flex items-center gap-1 self-start text-small text-default-500 transition-colors hover:text-default-700"
+        type="button"
+        onClick={onBack}
+      >
+        <Icon icon="solar:arrow-left-linear" width={16} />
+        Volver
+      </button>
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-6">
         <div className="w-full shrink-0 overflow-hidden lg:w-[380px] lg:shrink-0 lg:flex-none">
         <Calendar
@@ -388,12 +351,16 @@ export default function StepCalendar({
             title: "text-default-700 text-small font-semibold",
             gridHeader: "bg-transparent shadow-none",
             gridHeaderCell: "font-medium text-default-400 text-xs p-0 w-full",
-            gridHeaderRow: "px-2 pb-3 lg:px-3",
-            gridBodyRow: "gap-x-0.5 px-2 mb-1 first:mt-4 last:mb-0 lg:gap-x-1 lg:px-3",
+            gridHeaderRow: "px-2 pb-1.5 lg:px-3",
+            gridBodyRow: "gap-x-0.5 px-2 mb-1 first:mt-2 last:mb-0 lg:gap-x-1 lg:px-3",
             gridWrapper: "pb-3 w-full max-w-full overflow-hidden",
             cell: "p-1 w-full lg:p-1.5",
-            cellButton:
-              "w-full h-9 rounded-medium data-selected:shadow-[0_2px_12px_0] data-selected:shadow-primary-300 text-small font-medium",
+            cellButton: [
+              "w-full h-9 rounded-medium data-selected:shadow-[0_2px_12px_0] data-selected:shadow-primary-300 text-small",
+              vetServiceId
+                ? "font-semibold data-[unavailable]:font-normal"
+                : "font-medium",
+            ].join(" "),
             content: "w-full",
           }}
           isDateUnavailable={isDateUnavailable}
@@ -404,27 +371,14 @@ export default function StepCalendar({
         />
         </div>
         <CalendarTimeSelect
-          day={selectedDate.day}
           isGeneralFlow={!vetServiceId && !!serviceId}
           loading={loadingSlots}
           selectedTime={selectedTime}
-          timeFormat={timeFormat}
           timeSlots={timeSlots}
-          weekday={format(new Date(selectedDate.year, selectedDate.month - 1, selectedDate.day), "EEE", {locale: es})}
           onConfirm={onNext}
           onTimeChange={onTimeChange}
-          onTimeFormatChange={onTimeFormatChange}
         />
       </div>
-
-      <button
-        className="shrink-0 flex items-center gap-1 self-start text-small text-default-500 transition-colors hover:text-default-700"
-        type="button"
-        onClick={onBack}
-      >
-        <Icon icon="solar:arrow-left-linear" width={16} />
-        Volver
-      </button>
     </div>
   );
 }

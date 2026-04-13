@@ -34,6 +34,7 @@ interface StepConfirmationProps {
     species: string;
     breed: string;
     notes: string;
+    payFullPrice: boolean;
   };
   onReschedule: () => void;
   onChangeTime: () => void;

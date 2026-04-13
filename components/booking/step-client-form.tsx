@@ -1,6 +1,6 @@
 "use client";
 
-import {Button, Card, CardBody, Form, Input} from "@heroui/react";
+import {Button, Card, CardBody, Checkbox, Form, Input} from "@heroui/react";
 import {Icon} from "@iconify/react";
 import {useCallback, useState} from "react";
 
@@ -9,8 +9,18 @@ const speciesOptions = [
   {key: "Gato", label: "Gato", icon: "solar:cat-bold-duotone"},
 ];
 
+function formatCLP(amount: number): string {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 interface StepClientFormProps {
   onBack: () => void;
+  depositAmount?: number;
+  fullPrice?: number;
   onSubmit: (data: {
     phone: string;
     name: string;
@@ -19,11 +29,17 @@ interface StepClientFormProps {
     species: string;
     breed: string;
     notes: string;
+    payFullPrice: boolean;
   }) => void;
 }
 
-export default function StepClientForm({onBack, onSubmit}: StepClientFormProps) {
+export default function StepClientForm({onBack, onSubmit, depositAmount, fullPrice}: StepClientFormProps) {
   const [species, setSpecies] = useState<string>("");
+  const [payFullPrice, setPayFullPrice] = useState(false);
+
+  const showPaymentChoice =
+    depositAmount != null && depositAmount > 0 &&
+    fullPrice != null && fullPrice > depositAmount;
 
   const handleSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
@@ -34,9 +50,9 @@ export default function StepClientForm({onBack, onSubmit}: StepClientFormProps) 
       const name = formData.get("name") as string;
       const petName = formData.get("petName") as string;
 
-      onSubmit({phone, name, email: "", petName, species, breed: "", notes: ""});
+      onSubmit({phone, name, email: "", petName, species, breed: "", notes: "", payFullPrice});
     },
-    [onSubmit, species],
+    [onSubmit, species, payFullPrice],
   );
 
   return (
@@ -47,6 +63,34 @@ export default function StepClientForm({onBack, onSubmit}: StepClientFormProps) 
     >
       <div className="flex-1 w-full">
         <div className="flex max-w-md flex-col gap-4 py-2 md:mx-auto">
+          {showPaymentChoice && (
+            <div className="flex gap-2.5 rounded-large border border-primary-100 bg-primary-50 p-3">
+              <Icon
+                icon="solar:info-circle-bold-duotone"
+                width={18}
+                className="shrink-0 mt-0.5 text-primary"
+              />
+              <div className="flex flex-col gap-2">
+                <p className="text-tiny text-default-600 leading-snug">
+                  Se requiere un depósito de{" "}
+                  <span className="font-semibold text-default-foreground">
+                    {formatCLP(depositAmount!)}
+                  </span>{" "}
+                  para confirmar tu hora. Se descuenta del valor total de la consulta.
+                </p>
+                <Checkbox
+                  size="sm"
+                  isSelected={payFullPrice}
+                  onValueChange={setPayFullPrice}
+                  classNames={{
+                    label: "text-tiny text-default-600",
+                  }}
+                >
+                  Pagar consulta completa ({formatCLP(fullPrice!)})
+                </Checkbox>
+              </div>
+            </div>
+          )}
           <Input
             isRequired
             classNames={{label: "text-tiny text-default-600"}}

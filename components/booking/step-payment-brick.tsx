@@ -45,6 +45,7 @@ interface ClientFormData {
   species: string;
   breed: string;
   notes: string;
+  payFullPrice: boolean;
 }
 
 interface StepPaymentBrickProps {
@@ -256,9 +257,22 @@ export default function StepPaymentBrick({
   const didRequest = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
-  const depositAmount = hold?.amount ?? vetService.deposit_amount ?? 0;
+  const depositAmount = clientData.payFullPrice
+    ? vetService.price
+    : (vetService.deposit_amount ?? 0);
 
-  // 1. Create preference once on mount
+  // 0. Init MP SDK immediately — don't wait for the hold.
+  //    Uses env var (available at build time) or falls back to the hold's key.
+  useEffect(() => {
+    if (mpInitialized) return;
+    const key = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY;
+    if (key) {
+      initMercadoPago(key, { locale: "es-CL" });
+      mpInitialized = true;
+    }
+  }, []);
+
+  // 1. Create hold once on mount (runs in PARALLEL with brick init)
   useEffect(() => {
     if (didRequest.current) return;
     didRequest.current = true;
@@ -290,6 +304,7 @@ export default function StepPaymentBrick({
           payerEmail: clientData.email || undefined,
         });
 
+        // Fallback: if env var wasn't set, init SDK now with the hold's key
         if (!mpInitialized) {
           initMercadoPago(h.publicKey, { locale: "es-CL" });
           mpInitialized = true;
@@ -417,7 +432,11 @@ export default function StepPaymentBrick({
               ? `Pago rechazado (${result.statusDetail}). Intenta con otra tarjeta.`
               : "Pago rechazado. Intenta con otra tarjeta.",
           );
-          setState("awaiting_payment"); // Brick stays mounted; user can retry
+          // Backend marks the payments row as 'rejected' and blocks retries
+          // on the same payment id. We must drop into the failed state so
+          // the user sees the error UI + the Reintentar button (which
+          // reloads the page to start a fresh hold).
+          setState("failed");
           return;
         }
         // pending / in_process — wait for webhook via realtime
@@ -482,15 +501,14 @@ export default function StepPaymentBrick({
     setState("failed");
   }, []);
 
+  // Amount comes from vetService props (always available), NOT from hold.
+  // This lets the brick mount immediately while payments-create runs in parallel.
   const initialization = useMemo(
-    () =>
-      hold
-        ? {
-            amount: depositAmount,
-            payer: { email: clientData.email || "" },
-          }
-        : null,
-    [hold, depositAmount, clientData.email],
+    () => ({
+      amount: depositAmount,
+      payer: { email: clientData.email || "" },
+    }),
+    [depositAmount, clientData.email],
   );
 
   if (state === "slot_taken") {
@@ -620,7 +638,7 @@ export default function StepPaymentBrick({
         </div>
       ) : (
         <div
-          className="hvi-brick-host relative z-20 -mt-3"
+          className="hvi-brick-host relative z-20 -mt-3 min-h-[360px]"
           style={{
             // The MP secure-field iframes read the computed font-family of
             // this wrapper and inject it into their internal stylesheet.
@@ -630,16 +648,14 @@ export default function StepPaymentBrick({
             fontFamily: 'var(--font-sans), system-ui, sans-serif',
           }}
         >
-          {initialization && (
-            <MemoCardPayment
-              initialization={initialization}
-              customization={HVI_BRICK_CUSTOMIZATION}
-              onSubmit={onBrickSubmit}
-              onReady={onBrickReady}
-              onError={onBrickError}
-            />
-          )}
-          {!brickReady && (
+          <MemoCardPayment
+            initialization={initialization}
+            customization={HVI_BRICK_CUSTOMIZATION}
+            onSubmit={onBrickSubmit}
+            onReady={onBrickReady}
+            onError={onBrickError}
+          />
+          {(!brickReady || !hold) && (
             <div className="absolute inset-0 z-30 bg-default-50">
               <BrickSkeleton />
             </div>
@@ -648,7 +664,26 @@ export default function StepPaymentBrick({
       )}
 
       {(state === "awaiting_payment" || state === "preparing") && (
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 flex flex-col items-center gap-2 px-4 py-3">
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 flex flex-col items-center gap-1.5 px-4 pb-3 pt-2">
+          <div className="flex items-center gap-2.5">
+            <span className="flex items-center gap-1 text-[10px] font-medium text-default-500">
+              <Icon
+                icon="solar:shield-check-bold-duotone"
+                width={12}
+                className="text-success-500"
+              />
+              Pago seguro
+            </span>
+            <span className="h-2.5 w-px bg-default-200" />
+            <span className="flex items-center gap-1 text-[10px] font-medium text-default-500">
+              <Icon
+                icon="solar:lock-keyhole-bold-duotone"
+                width={12}
+                className="text-primary"
+              />
+              Cifrado SSL
+            </span>
+          </div>
           <Button
             className="pointer-events-auto w-full"
             color="primary"
@@ -662,11 +697,11 @@ export default function StepPaymentBrick({
         </div>
       )}
     </div>
-    {brickReady && state === "awaiting_payment" && (
+    {(state === "preparing" || state === "awaiting_payment") && (
       <div className="flex items-center justify-center gap-1.5 pt-2 pb-[10px]">
         <Icon
           icon="simple-icons:mercadopago"
-          width={16}
+          width={14}
           style={{ color: "#00B1EA" }}
         />
         <span className="text-tiny font-medium text-default-400">

@@ -26,6 +26,7 @@ interface ClientFormData {
   species: string;
   breed: string;
   notes: string;
+  payFullPrice: boolean;
 }
 
 interface BookingWizardProps {
@@ -336,6 +337,8 @@ export default function BookingWizard({
             <StepClientForm
               onBack={() => goTo("calendar", -1)}
               onSubmit={handleClientFormSubmit}
+              depositAmount={requiresPayment ? (selectedVetService?.deposit_amount ?? undefined) : undefined}
+              fullPrice={requiresPayment ? (selectedVetService?.price ?? undefined) : undefined}
             />
           )}
 
