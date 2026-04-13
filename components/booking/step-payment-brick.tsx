@@ -543,7 +543,7 @@ export default function StepPaymentBrick({
               <Icon icon="logos:amex" width={22} />
             </div>
           </div>
-          <div className="relative z-30 -mt-4">
+          <div className="relative z-30 -mt-4" style={{ fontFamily: 'system-ui, sans-serif' }}>
           <MemoCardPayment
             initialization={initialization}
             customization={BRICK_CUSTOMIZATION}
