@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { initMercadoPago, CardPayment } from "@mercadopago/sdk-react";
+import { initMercadoPago, CardPayment, StatusScreen } from "@mercadopago/sdk-react";
 import { motion } from "framer-motion";
 
 import {
@@ -35,7 +35,8 @@ type PaymentState =
   | "confirmed"
   | "failed"
   | "expired"
-  | "slot_taken";
+  | "slot_taken"
+  | "status_screen";
 
 interface ClientFormData {
   phone: string;
@@ -59,71 +60,14 @@ interface StepPaymentBrickProps {
   onCancel: () => void;
 }
 
-// HVI brand palette (from hero.ts primary scale)
-const HVI = {
-  primary: "#493598",
-  primaryDark: "#362871",
-  primaryLight: "#745CD6",
-
-  text: "#11181C",
-  textMuted: "#71717A",
-  border: "#E4E4E7",
-  surface: "#FAFAFA",
-  inputBg: "#FFFFFF",
-};
-
-// Single source of truth for Brick customization. The Brick's native accordion
-// handles method selection + collapsing the unselected options. We hide its
-// internal title row (we render our own page header) and let MP show the form
-// for credit / debit / wallet on the same surface.
-const HVI_BRICK_CUSTOMIZATION = {
+// Default MP Brick customization — uses the standard theme so the form
+// looks like a familiar, trustworthy payment experience out of the box.
+const BRICK_CUSTOMIZATION = {
   visual: {
     hideFormTitle: true,
-    hidePaymentButton: true,
     style: {
       theme: "default" as const,
-      customVariables: {
-        textPrimaryColor: HVI.text,
-        textSecondaryColor: HVI.textMuted,
-        formBackgroundColor: HVI.surface,
-        inputBackgroundColor: HVI.inputBg,
-        baseColor: HVI.primary,
-        baseColorFirstVariant: HVI.primaryDark,
-        baseColorSecondVariant: HVI.primaryLight,
-        errorColor: "#d32f2f",
-        successColor: "#2e7d32",
-        outlinePrimaryColor: HVI.primary,
-        outlineSecondaryColor: HVI.border,
-        buttonTextColor: "#FFFFFF",
-        fontSizeExtraExtraSmall: "10px",
-        fontSizeExtraSmall: "12px",
-        fontSizeSmall: "13px",
-        fontSizeMedium: "14px",
-        fontSizeLarge: "16px",
-        fontSizeExtraLarge: "20px",
-        fontWeightNormal: "400",
-        fontWeightSemiBold: "600",
-        formInputsTextTransform: "none",
-        // (No input padding / border overrides — they shift the iframe
-        //  hit-area off the visible bounds and break touches on the
-        //  narrow expiry/CVV row on mobile.)
-        inputFocusedBoxShadow: "0 0 0 3px rgba(73, 53, 152, 0.18)",
-        inputErrorFocusedBoxShadow: "0 0 0 3px rgba(211, 47, 47, 0.18)",
-        borderRadiusSmall: "6px",
-        borderRadiusMedium: "10px",
-        borderRadiusLarge: "14px",
-        formPadding: "16px",
-      },
-    },
-    texts: {
-      formTitle: "Pago de reserva",
-      formSubmit: "Pagar reserva",
-      emailSectionTitle: "Tu correo",
-      installmentsSectionTitle: "Cuotas",
-      paymentMethods: {
-        creditCardTitle: "Tarjeta de crédito",
-        debitCardTitle: "Tarjeta de débito",
-      },
+      customVariables: {},
     },
   },
   paymentMethods: {
@@ -254,6 +198,7 @@ export default function StepPaymentBrick({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hold, setHold] = useState<PaymentHoldResponse | null>(null);
   const [brickReady, setBrickReady] = useState(false);
+  const [mpPaymentId, setMpPaymentId] = useState<string | null>(null);
   const didRequest = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -371,10 +316,10 @@ export default function StepPaymentBrick({
     setState((prev) => (prev === "awaiting_payment" ? "expired" : prev));
   }, []);
 
-  // 3b. After confirmed, hold the success animation for 2s then redirect
+  // 3b. After confirmed, give the user time to see the status screen then redirect
   useEffect(() => {
     if (state !== "confirmed") return;
-    const id = setTimeout(() => onConfirmedRef.current(), 2000);
+    const id = setTimeout(() => onConfirmedRef.current(), 3000);
     return () => clearTimeout(id);
   }, [state]);
 
@@ -422,6 +367,14 @@ export default function StepPaymentBrick({
           },
         });
 
+        // Show the MP Status Screen Brick for any response with a payment ID
+        // (approved, rejected, or pending). It handles all 3 states with proper UX.
+        if (result.mpPaymentId) {
+          setMpPaymentId(result.mpPaymentId);
+          setState("status_screen");
+          return;
+        }
+
         if (result.status === "approved") {
           setState("confirmed");
           return;
@@ -432,10 +385,6 @@ export default function StepPaymentBrick({
               ? `Pago rechazado (${result.statusDetail}). Intenta con otra tarjeta.`
               : "Pago rechazado. Intenta con otra tarjeta.",
           );
-          // Backend marks the payments row as 'rejected' and blocks retries
-          // on the same payment id. We must drop into the failed state so
-          // the user sees the error UI + the Reintentar button (which
-          // reloads the page to start a fresh hold).
           setState("failed");
           return;
         }
@@ -469,23 +418,6 @@ export default function StepPaymentBrick({
     },
     [submitCardData],
   );
-
-  const handlePayPress = useCallback(async () => {
-    try {
-      const w = window as unknown as {
-        cardPaymentBrickController?: {
-          getFormData: () => Promise<Record<string, unknown>>;
-        };
-      };
-      const ctl = w.cardPaymentBrickController;
-      if (!ctl) return;
-      const cardFormData = await ctl.getFormData();
-      if (!cardFormData?.token) return; // validation failed; Brick shows inline errors
-      await submitCardData(cardFormData);
-    } catch {
-      // getFormData rejects when the form is invalid — Brick already shows inline errors
-    }
-  }, [submitCardData]);
 
   const onBrickReady = useCallback(() => setBrickReady(true), []);
   const onBrickError = useCallback((err: unknown) => {
@@ -561,59 +493,22 @@ export default function StepPaymentBrick({
   // awaiting_payment | processing | confirmed
   return (
     <div className="mx-auto -mb-6 -mt-[10px] flex min-h-0 w-full max-w-sm flex-1 flex-col">
-    <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-large bg-default-50 shadow-small">
-      <div className="flex items-center gap-2 px-3 pt-2 pb-1">
-        <button
-          type="button"
-          aria-label="Volver"
-          onClick={onCancel}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-default-500 hover:bg-default-100 hover:text-default-700"
-        >
-          <Icon icon="solar:arrow-left-linear" width={20} />
-        </button>
-        <div className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="truncate text-tiny font-medium text-default-foreground">
-            {veterinarian.name}
-          </span>
-          <span className="truncate text-tiny text-default-500">
-            {vetService.label}
-          </span>
+    <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-large bg-white shadow-small">
+      {state === "status_screen" && mpPaymentId ? (
+        <div className="p-2">
+          <StatusScreen
+            initialization={{ paymentId: mpPaymentId }}
+            onReady={() => {}}
+            onError={(err: unknown) => console.error("StatusScreen error", err)}
+          />
         </div>
-        <div className="flex shrink-0 flex-col items-end leading-tight">
-          <span className="text-tiny text-default-500">Valor reserva</span>
-          <span className="text-xl font-semibold font-serif text-primary">
-            {formatCLP(depositAmount)}
-          </span>
-        </div>
-      </div>
-
-      {state === "confirmed" ? (
-        <motion.div
-          className="flex flex-1 flex-col items-center justify-center gap-5 px-6 py-10"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.25 }}
-        >
-          <motion.div
-            initial={{ scale: 0.4, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 240, damping: 16, delay: 0.05 }}
-          >
-            <Icon
-              className="text-success-500"
-              icon="solar:check-circle-bold"
-              width={96}
-            />
-          </motion.div>
-          <motion.p
-            className="text-default-foreground text-2xl font-medium font-serif text-center"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25, duration: 0.25 }}
-          >
+      ) : state === "confirmed" ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10">
+          <Icon className="text-success-500" icon="solar:check-circle-bold" width={64} />
+          <p className="text-default-foreground text-lg font-medium font-serif text-center">
             ¡Pago confirmado!
-          </motion.p>
-        </motion.div>
+          </p>
+        </div>
       ) : state === "processing" ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10">
           <Spinner color="primary" size="lg" />
@@ -637,75 +532,44 @@ export default function StepPaymentBrick({
           </Button>
         </div>
       ) : (
-        <div
-          className="hvi-brick-host relative z-20 -mt-3 min-h-[360px]"
-          style={{
-            // The MP secure-field iframes read the computed font-family of
-            // this wrapper and inject it into their internal stylesheet.
-            // Use sans here so the secure field placeholders render in
-            // DM Sans; labels are overridden separately to Georgia via the
-            // #cardPaymentBrick_container label rule in globals.css.
-            fontFamily: 'var(--font-sans), system-ui, sans-serif',
-          }}
-        >
+        <div className="relative min-h-[360px]">
+          <div className="relative z-[60] flex items-center justify-center gap-2.5 pt-3 pb-1 bg-white">
+            <Icon icon="simple-icons:mercadopago" width={22} style={{ color: "#00B1EA" }} />
+            <span className="text-tiny font-medium text-default-500">Mercado Pago</span>
+            <span className="h-4 w-px bg-default-200" />
+            <div className="flex items-center gap-1.5">
+              <Icon icon="logos:visa" width={30} />
+              <Icon icon="logos:mastercard" width={22} />
+              <Icon icon="logos:amex" width={22} />
+            </div>
+          </div>
+          <div className="relative z-30 -mt-4">
           <MemoCardPayment
             initialization={initialization}
-            customization={HVI_BRICK_CUSTOMIZATION}
+            customization={BRICK_CUSTOMIZATION}
             onSubmit={onBrickSubmit}
             onReady={onBrickReady}
             onError={onBrickError}
           />
+          </div>
           {(!brickReady || !hold) && (
-            <div className="absolute inset-0 z-30 bg-default-50">
+            <div className="absolute inset-x-0 top-8 bottom-0 z-[70] bg-white">
               <BrickSkeleton />
             </div>
           )}
         </div>
       )}
-
-      {(state === "awaiting_payment" || state === "preparing") && (
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 flex flex-col items-center gap-1.5 px-4 pb-3 pt-2">
-          <div className="flex items-center gap-2.5">
-            <span className="flex items-center gap-1 text-[10px] font-medium text-default-500">
-              <Icon
-                icon="solar:shield-check-bold-duotone"
-                width={12}
-                className="text-success-500"
-              />
-              Pago seguro
-            </span>
-            <span className="h-2.5 w-px bg-default-200" />
-            <span className="flex items-center gap-1 text-[10px] font-medium text-default-500">
-              <Icon
-                icon="solar:lock-keyhole-bold-duotone"
-                width={12}
-                className="text-primary"
-              />
-              Cifrado SSL
-            </span>
-          </div>
-          <Button
-            className="pointer-events-auto w-full"
-            color="primary"
-            size="md"
-            startContent={<Icon icon="solar:lock-keyhole-bold" width={16} />}
-            isDisabled={!brickReady || state !== "awaiting_payment"}
-            onPress={handlePayPress}
-          >
-            Pagar reserva
-          </Button>
-        </div>
-      )}
     </div>
     {(state === "preparing" || state === "awaiting_payment") && (
-      <div className="flex items-center justify-center gap-1.5 pt-2 pb-[10px]">
-        <Icon
-          icon="simple-icons:mercadopago"
-          width={14}
-          style={{ color: "#00B1EA" }}
-        />
-        <span className="text-tiny font-medium text-default-400">
-          Mercado Pago
+      <div className="flex items-center justify-center gap-3 pt-2 pb-[10px]">
+        <span className="flex items-center gap-1 text-[10px] font-medium text-default-400">
+          <Icon icon="solar:lock-keyhole-bold" width={11} className="text-success-500" />
+          Cifrado SSL
+        </span>
+        <span className="h-2.5 w-px bg-default-200" />
+        <span className="flex items-center gap-1 text-[10px] font-medium text-default-400">
+          <Icon icon="solar:shield-check-bold" width={11} className="text-success-500" />
+          Transacción segura
         </span>
       </div>
     )}
