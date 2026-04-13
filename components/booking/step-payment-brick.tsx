@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Skeleton, Spinner } from "@heroui/react";
+import { Button, Skeleton } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import {
   memo,
@@ -490,29 +490,29 @@ export default function StepPaymentBrick({
     );
   }
 
+  // status_screen — rendered outside the card, full width
+  if ((state === "status_screen" || state === "processing") && mpPaymentId) {
+    return (
+      <div className="mx-auto flex w-full max-w-sm flex-col mb-5">
+        <StatusScreen
+          initialization={{ paymentId: mpPaymentId }}
+          onReady={() => {}}
+          onError={(err: unknown) => console.error("StatusScreen error", err)}
+        />
+      </div>
+    );
+  }
+
   // awaiting_payment | processing | confirmed
   return (
     <div className="mx-auto -mb-6 -mt-[10px] flex min-h-0 w-full max-w-sm flex-1 flex-col">
     <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-large bg-white shadow-small">
-      {state === "status_screen" && mpPaymentId ? (
-        <div className="p-2">
-          <StatusScreen
-            initialization={{ paymentId: mpPaymentId }}
-            onReady={() => {}}
-            onError={(err: unknown) => console.error("StatusScreen error", err)}
-          />
-        </div>
-      ) : state === "confirmed" ? (
+      {state === "confirmed" ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10">
           <Icon className="text-success-500" icon="solar:check-circle-bold" width={64} />
           <p className="text-default-foreground text-lg font-medium font-serif text-center">
             ¡Pago confirmado!
           </p>
-        </div>
-      ) : state === "processing" ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10">
-          <Spinner color="primary" size="lg" />
-          <p className="text-small text-default-500">Procesando pago...</p>
         </div>
       ) : state === "expired" ? (
         <div className="flex flex-col items-center gap-4 px-6 py-10">
