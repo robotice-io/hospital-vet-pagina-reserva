@@ -496,6 +496,12 @@ export default function StepPaymentBrick({
       <div className="mx-auto flex w-full max-w-sm flex-col mb-5">
         <StatusScreen
           initialization={{ paymentId: mpPaymentId }}
+          customization={{
+            backUrls: {
+              error: "https://agenda.hospitalveterinariointegral.com/?book",
+              return: "https://agenda.hospitalveterinariointegral.com/?book",
+            },
+          }}
           onReady={() => {}}
           onError={(err: unknown) => console.error("StatusScreen error", err)}
         />
