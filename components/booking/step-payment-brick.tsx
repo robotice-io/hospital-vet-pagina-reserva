@@ -285,11 +285,17 @@ export default function StepPaymentBrick({
     unsubscribeRef.current = subscribeToAppointment(
       appointmentId,
       () => {
-        setState("confirmed");
+        setState((prev) => (prev === "status_screen" ? prev : "confirmed"));
       },
       () => {
-        setState("failed");
-        setErrorMsg("La reserva fue cancelada. Intenta nuevamente.");
+        // Don't clobber the MP Status Screen — it already shows the rejection
+        // UX. The appointment-cancelled event is just our own bookkeeping
+        // reacting to the rejected payment.
+        setState((prev) => {
+          if (prev === "status_screen" || prev === "confirmed") return prev;
+          setErrorMsg("La reserva fue cancelada. Intenta nuevamente.");
+          return "failed";
+        });
       },
     );
 
@@ -298,9 +304,11 @@ export default function StepPaymentBrick({
         status?.status === "confirmed" &&
         status.payment_status === "paid"
       ) {
-        setState("confirmed");
+        setState((prev) => (prev === "status_screen" ? prev : "confirmed"));
       } else if (status?.status === "cancelled") {
-        setState("failed");
+        setState((prev) =>
+          prev === "status_screen" || prev === "confirmed" ? prev : "failed",
+        );
       }
     });
 
@@ -353,6 +361,14 @@ export default function StepPaymentBrick({
     async (formData: Record<string, unknown>) => {
       const currentHold = holdRef.current;
       if (!currentHold) return;
+      // Once we submit, the HTTP response from payments-process-card is the
+      // authoritative source of truth (MP runs in binary_mode — approved or
+      // rejected, no pending limbo). The realtime subscription is only useful
+      // pre-submit to catch cleanup-cron slot expirations; after this point it
+      // races against our sync response and can clobber the Status Screen
+      // state with a stale "cancelled" event. Unsubscribe now.
+      unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
       setState("processing");
       try {
         const result = await processCardPayment({
