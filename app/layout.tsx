@@ -8,9 +8,6 @@ import { fontSans, fontCardMono } from "@/config/fonts";
 export const metadata: Metadata = {
   title: "Agendar Cita - Hospital Veterinario Integral",
   description: "Agenda tu cita veterinaria en línea.",
-  icons: {
-    icon: "/favicon.ico",
-  },
 };
 
 export const viewport: Viewport = {
