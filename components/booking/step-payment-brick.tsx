@@ -36,7 +36,8 @@ type PaymentState =
   | "failed"
   | "expired"
   | "slot_taken"
-  | "status_screen";
+  | "status_screen"
+  | "status_screen_error";
 
 interface ClientFormData {
   phone: string;
@@ -199,6 +200,7 @@ export default function StepPaymentBrick({
   const [hold, setHold] = useState<PaymentHoldResponse | null>(null);
   const [brickReady, setBrickReady] = useState(false);
   const [mpPaymentId, setMpPaymentId] = useState<string | null>(null);
+  const [paymentApproved, setPaymentApproved] = useState(false);
   const didRequest = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -324,12 +326,16 @@ export default function StepPaymentBrick({
     setState((prev) => (prev === "awaiting_payment" ? "expired" : prev));
   }, []);
 
-  // 3b. After confirmed, give the user time to see the status screen then redirect
+  // 3b. Auto-redirect to the confirmation step 3s after payment success.
+  //     Fires on either: (a) the "confirmed" HVI state, or (b) an approved
+  //     payment that's currently showing the MP Status Screen. In both cases
+  //     onConfirmed delegates the destination to the wizard's view-state
+  //     manager — no hardcoded URLs.
   useEffect(() => {
-    if (state !== "confirmed") return;
+    if (state !== "confirmed" && !paymentApproved) return;
     const id = setTimeout(() => onConfirmedRef.current(), 3000);
     return () => clearTimeout(id);
-  }, [state]);
+  }, [state, paymentApproved]);
 
   // 4. Unmount Brick on leave
   useEffect(() => {
@@ -385,8 +391,12 @@ export default function StepPaymentBrick({
 
         // Show the MP Status Screen Brick for any response with a payment ID
         // (approved, rejected, or pending). It handles all 3 states with proper UX.
+        // paymentApproved drives the 3s auto-redirect effect above — so
+        // successful payments hand off to the wizard's view-state manager
+        // instead of MP's hardcoded-URL backUrls.return.
         if (result.mpPaymentId) {
           setMpPaymentId(result.mpPaymentId);
+          setPaymentApproved(result.status === "approved");
           setState("status_screen");
           return;
         }
@@ -480,6 +490,27 @@ export default function StepPaymentBrick({
     );
   }
 
+  if (state === "status_screen_error") {
+    return (
+      <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5 rounded-large bg-default-50 px-8 py-10 shadow-small">
+        <Icon
+          className="text-warning-500"
+          icon="solar:info-circle-bold-duotone"
+          width={56}
+        />
+        <p className="text-default-foreground text-lg font-medium font-serif text-center">
+          No pudimos mostrar el comprobante
+        </p>
+        <p className="text-tiny text-default-500 text-center">
+          Tu pago fue procesado. Te enviaremos la confirmación por email/WhatsApp.
+        </p>
+        <Button variant="flat" onPress={onCancel}>
+          Cerrar
+        </Button>
+      </div>
+    );
+  }
+
   if (state === "failed") {
     return (
       <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5 rounded-large bg-default-50 px-8 py-10 shadow-small">
@@ -506,7 +537,12 @@ export default function StepPaymentBrick({
     );
   }
 
-  // status_screen — rendered outside the card, full width
+  // status_screen — rendered outside the card, full width.
+  // Approved payments auto-redirect after 3s (see effect above) via
+  // onConfirmed — the wizard's view-state manager — instead of MP's
+  // backUrls.return, which does a hardcoded full-page nav and drops
+  // the wizard state. backUrls.error is kept so MP can render a retry
+  // affordance on rejected/errored payments.
   if ((state === "status_screen" || state === "processing") && mpPaymentId) {
     return (
       <div className="mx-auto flex w-full max-w-sm flex-col mb-5">
@@ -514,12 +550,16 @@ export default function StepPaymentBrick({
           initialization={{ paymentId: mpPaymentId }}
           customization={{
             backUrls: {
-              error: "https://agenda.hospitalveterinariointegral.com/?book",
-              return: "https://agenda.hospitalveterinariointegral.com/?book",
+              error: `${window.location.origin}/?book`,
             },
           }}
           onReady={() => {}}
-          onError={(err: unknown) => console.error("StatusScreen error", err)}
+          onError={(err: unknown) => {
+            console.error("StatusScreen error", err);
+            setState((prev) =>
+              prev === "confirmed" ? prev : "status_screen_error",
+            );
+          }}
         />
       </div>
     );
